@@ -14,9 +14,9 @@ const firebaseConfig = {
 
 // Configurazione Gemini AI ottimizzata per l'assistente avanzato
 const geminiConfig = {
-    apiKey: "AIzaSyBcaW9wnXS8QXf7fH3eN_TK-2mNqO8pLrE",
-    model: "gemini-1.5-flash",
-    endpoint: "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
+    apiKey: "AIzaSyDZyStzlwzzyHEiEt36T1L3Q7QLkm9g4PI", // Chiave API aggiornata
+    model: "gemini-1.5-flash", // Modello verificato
+    endpoint: "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent", // Endpoint verificato
     temperature: 0.9, // Più creatività per risposte naturali
     maxOutputTokens: 1000, // Più spazio per risposte dettagliate
     topP: 0.9,

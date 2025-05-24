@@ -366,8 +366,7 @@ const availableFunctions = {
         const totalBookings = prenotazioniData.length;
         const todaysBookings = prenotazioniData.filter(b => b.date === today).length;
         
-        // Chiamata interna sicura, non diretta all'API
-        const availableSlotsResult = await availableFunctions.getAvailableSlots({}); // Passa oggetto vuoto se necessario
+        const availableSlotsResult = await availableFunctions.getAvailableSlots({}); 
         const availableSlotsCount = Array.isArray(availableSlotsResult) ? availableSlotsResult.length : 0;
 
         return {
@@ -425,9 +424,13 @@ Se l'utente chiede di fare qualcosa per cui non ha i permessi (es. un non-admin 
     console.log("AI Assistant: Invio richiesta a Gemini API. Prompt:", prompt);
 
     try {
-        const response = await fetch(geminiAPI.endpoint, {
+        const fullApiUrl = `${geminiAPI.endpoint}?key=${geminiAPI.apiKey}`; // API key come parametro URL
+        const response = await fetch(fullApiUrl, { // URL modificato
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'x-goog-api-key': geminiAPI.apiKey },
+            headers: { 
+                'Content-Type': 'application/json',
+                // Rimuovi 'x-goog-api-key': geminiAPI.apiKey
+            },
             body: JSON.stringify({
                 contents: requestContents,
                 tools: tools,
@@ -684,7 +687,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (!chatbox || !assistantButton || !closeButton || !messagesContainer || !inputField || !sendButton || !suggestionsContainer) {
             console.error("AI Assistant: Uno o più elementi UI critici non trovati dopo l'iniezione. L'impostazione degli event listener potrebbe fallire.");
-            // Non ritornare qui, per permettere ai listener che trovano i loro elementi di essere comunque aggiunti.
         } else {
             console.log("AI Assistant: Tutti gli elementi UI critici referenziati con successo.");
         }
@@ -862,7 +864,6 @@ function loadDatabaseData() {
 }
 
 function updateChatContext() {
-    // Riferimenti agli elementi DOM (assicurati che siano accessibili qui)
     const currentChatbox = document.querySelector('.ai-assistant-chatbox');
     const currentMessagesContainer = document.querySelector('.ai-assistant-messages');
 
@@ -887,7 +888,6 @@ function getInitialSuggestions() {
 }
 
 function showUserMessage(message) {
-    // Assicurati che messagesContainer sia accessibile (potrebbe essere necessario passarlo o re-query)
     const currentMessagesContainer = document.querySelector('.ai-assistant-messages');
     if (!currentMessagesContainer) {
         console.error("AI Assistant: showUserMessage - messagesContainer non trovato.");
@@ -920,14 +920,12 @@ function showTypingIndicator() {
         console.error("AI Assistant: showTypingIndicator - messagesContainer non trovato.");
         return;
     }
-    // Usa la variabile globale typingIndicator, assicurandoti che sia stata creata in createAssistantUI
     if (!typingIndicator) {
         console.error("AI Assistant: showTypingIndicator - typingIndicator non inizializzato.");
-        // Potresti ricrearlo qui se necessario, ma è meglio che sia gestito centralmente
         typingIndicator = document.createElement('div'); 
         typingIndicator.className = 'ai-assistant-typing-indicator ai-assistant-message bot';
         typingIndicator.innerHTML = '<span></span><span></span><span></span>';
-        currentMessagesContainer.appendChild(typingIndicator); // Aggiungilo se ricreato
+        currentMessagesContainer.appendChild(typingIndicator); 
     }
     typingIndicator.style.display = 'flex'; 
     currentMessagesContainer.scrollTop = currentMessagesContainer.scrollHeight;
