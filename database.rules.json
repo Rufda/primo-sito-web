@@ -1,0 +1,24 @@
+{
+  "rules": {
+    "users": {
+      "$uid": {
+        ".read": "$uid === auth.uid",
+        ".write": "$uid === auth.uid"
+      },
+      ".read": "root.child('users').child(auth.uid).child('role').val() === 'admin'"
+    },
+    "disponibilita": {
+      ".read": "auth != null",
+      ".write": "root.child('users').child(auth.uid).child('role').val() === 'admin'"
+    },
+    "prenotazioni": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      "$bookingId": {
+        ".write": "auth != null && (newData.child('userId').val() === auth.uid || data.child('userId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'admin')"
+      }
+    },
+    ".read": false,
+    ".write": false
+  }
+}

@@ -1,0 +1,52 @@
+.table-container {
+    overflow-x: auto;
+    width: 100%;
+    margin: 0 auto;
+    padding-bottom: 5px;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    border-spacing: 0;
+}
+
+/* Fix problemi comuni di visualizzazione */
+img {
+    max-width: 100%;
+    height: auto;
+}
+
+/* Fix per sfondo nelle pagine */
+body::before {
+    background-position: center center !important;
+    background-size: cover !important;
+}
+
+/* Fix per gli input sui dispositivi mobili */
+input, select, textarea, button {
+    font-size: 16px !important; /* Evita lo zoom automatico su iOS */
+    box-sizing: border-box;
+}
+
+/* Fix globali per il padding e i margini */
+.box, .container, .form-container, .card {
+    box-sizing: border-box;
+}
+
+/* Fix per elementi che potrebbero creare scroll orizzontale */
+div, section, article, main, aside, nav {
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+/* Fix per accessibilità: focus visibili */
+button:focus, a:focus, input:focus, textarea:focus, select:focus {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+}
+
+/* Nasconde elementi che trabordano */
+.overflow-hidden {
+    overflow: hidden;
+}

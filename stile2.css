@@ -1,0 +1,141 @@
+:root {
+    --primary-color: #30c7d1;
+    --text-color: #ffffff;
+}
+
+html, body {
+    margin: 0;
+    padding: 0;
+    font-family: Arial, sans-serif;
+    box-sizing: border-box;
+    color: var(--text-color);
+}
+
+body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    background-image: url("foto.WEBP"); /* Modificato */
+    background-size: cover;
+    background-repeat: no-repeat;
+}
+
+.box {
+    padding: 20px 30px;
+    backdrop-filter: blur(10px);
+    width: 300px;
+    border-radius: 5px;
+    background: rgba(238, 238, 238, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+}
+
+.box .form {
+    padding: 10px 20px;
+}
+
+.box .form h2 {
+    text-align: center;
+    color: var(--text-color);
+}
+
+.box .form form {
+    margin-top: 50px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.box .form .inputbox {
+    padding: 10px 20px;
+    margin-bottom: 10px;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+}
+
+.box .form .inputbox input {
+    background: none;
+    border: none;
+    border-bottom: 1px solid var(--text-color);
+    color: var(--text-color);
+    padding: 5px 0;
+    outline: none;
+    margin-bottom: 10px;
+    width: 100%;
+    flex-direction: column;
+    font-size: 20px;
+}
+
+.box .form .inputbox label {
+    background: none;
+    border: none;
+    color: var(--text-color);
+    outline: none;
+    flex-direction: column;
+    align-items: center;
+}
+
+.box .form .inputbox input::placeholder {
+    color: var(--text-color);
+    opacity: .5;
+}
+
+.box .form .inputbox.orari {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px; /* Spacing between fields */
+    width: 100%; /* Adjust fields to width */
+}
+
+.box .form .inputbox.orari label {
+    margin: 0; /* Removes margin */
+    color: var(--text-color); /* Text color */
+}
+
+.box .form .inputbox.orari input {
+    flex: 1; /* Allows fields to occupy remaining space */
+    max-width: 45%; /* Limits the width of each input */
+    margin: 0; /* Removes margin */
+}
+
+.box .form input[type="submit"] {
+    background-color: var(--primary-color); /* Colore di sfondo */
+    color: var(--text-color); /* Colore del testo */
+    padding: 10px 20px; /* Spaziatura interna */
+    border: none; /* Rimuove il bordo */
+    border-radius: 5px; /* Angoli arrotondati */
+    cursor: pointer; /* Cambia il cursore al passaggio del mouse */
+    font-size: 16px; /* Dimensione del testo */
+    margin-top: 20px; /* Spaziatura superiore */
+}
+
+.box .form input[type="submit"]:hover {
+    background-color: #45a049; /* Colore di sfondo al passaggio del mouse */
+}
+
+
+.button {
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    background-color: hsl(184, 64%, 50%);
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    cursor: pointer;
+    border-radius: 5px;
+    font-weight: bold;
+    font-size: 14px;
+}
+
+@media (max-width: 600px) {
+    .box {
+      width: 90%;
+      margin: 10px auto;
+    }
+    .form {
+      padding: 10px 15px;
+    }
+  }

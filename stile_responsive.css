@@ -1,0 +1,235 @@
+/* Stile responsive per tutte le pagine del sito */
+:root {
+    --primary-color: #ff69b4;
+    --primary-light: #ffb6c1;
+    --primary-dark: #e6007e;
+    --secondary-color: #fff;
+    --background-light: rgba(255, 255, 255, 0.9);
+    --background-medium: rgba(255,192,203,0.3);
+    --shadow-color: rgba(0, 0, 0, 0.2);
+    --text-dark: #333;
+    --text-light: #fff;
+    --border-radius: 12px;
+    --transition-speed: 0.3s;
+}
+
+/* Regole base per dispositivi mobili (mobile-first approach) */
+html, body {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: Arial, sans-serif;
+}
+
+body {
+    min-height: 100vh;
+    width: 100%;
+    overflow-x: hidden;
+}
+
+.container {
+    width: 100%;
+    padding: 15px;
+    margin: 0 auto;
+    box-sizing: border-box;
+}
+
+/* Rendere le immagini responsive */
+img {
+    max-width: 100%;
+    height: auto;
+}
+
+/* Rendere i form responsive */
+input, textarea, select, button {
+    width: 100%;
+    margin-bottom: 10px;
+    box-sizing: border-box;
+    font-size: 16px; /* Dimensione più adatta per dispositivi mobili */
+}
+
+/* Fix tabelle responsive */
+.table-container {
+    width: 100%;
+    overflow-x: auto;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+/* Media query per dispositivi di varie dimensioni */
+
+/* Per dispositivi molto piccoli (fino a 480px) */
+@media (max-width: 480px) {
+    .box {
+        padding: 15px;
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 10px auto !important;
+    }
+    
+    h2 {
+        font-size: 1.4rem !important;
+    }
+    
+    .form-section h3 {
+        font-size: 1rem !important;
+    }
+    
+    .day {
+        min-height: 30px !important;
+        min-width: 30px !important;
+        font-size: 0.8rem !important;
+    }
+    
+    .day-name {
+        font-size: 0.8rem !important;
+    }
+    
+    .current-month {
+        font-size: 0.9rem !important;
+        min-width: 100px !important;
+    }
+    
+    .button {
+        padding: 8px 12px !important;
+        font-size: 14px !important;
+    }
+    
+    /* Riduci padding nelle tabelle */
+    table td, table th {
+        padding: 8px 5px !important;
+        font-size: 0.8rem !important;
+    }
+    
+    /* Fix per l'assistente AI */
+    .ai-assistant-container {
+        width: 90vw !important;
+        height: 60vh !important;
+        right: 5vw !important;
+    }
+}
+
+/* Per dispositivi mobili (da 481px a 768px) */
+@media (min-width: 481px) and (max-width: 768px) {
+    .box {
+        width: 90% !important;
+        max-width: 450px !important;
+        margin: 15px auto !important;
+    }
+    
+    /* Layout a colonna singola per il dashboard */
+    .dashboard {
+        grid-template-columns: 1fr !important;
+        gap: 15px !important;
+    }
+    
+    .container {
+        max-width: 95% !important;
+    }
+    
+    /* Miglior visibilità per le tabelle su tablet */
+    table {
+        min-width: 500px !important;
+    }
+}
+
+/* Per tablet e desktop di dimensioni medie (da 769px a 1024px) */
+@media (min-width: 769px) and (max-width: 1024px) {
+    .box {
+        max-width: 700px !important;
+        margin: 20px auto !important;
+    }
+    
+    .container {
+        max-width: 90% !important;
+    }
+    
+    /* Il layout a griglia rimane, ma con proporzioni diverse */
+    .dashboard {
+        grid-template-columns: 1fr 1fr !important;
+        gap: 15px !important;
+    }
+}
+
+/* Per desktop di grandi dimensioni (oltre 1024px) */
+@media (min-width: 1025px) {
+    .box {
+        max-width: 900px !important;
+        margin: 20px auto !important;
+    }
+    
+    .container {
+        max-width: 1200px !important;
+        margin: 0 auto !important;
+    }
+    
+    /* Layout ottimizzato per desktop */
+    .dashboard {
+        grid-template-columns: 1fr 1fr !important;
+        gap: 20px !important;
+    }
+}
+
+/* Prevenire zoom indesiderato su dispositivi iOS */
+@media screen and (-webkit-min-device-pixel-ratio:0) {
+    select, textarea, input[type="text"], input[type="password"],
+    input[type="datetime"], input[type="datetime-local"],
+    input[type="date"], input[type="month"], input[type="time"],
+    input[type="week"], input[type="number"], input[type="email"],
+    input[type="url"], input[type="search"], input[type="tel"],
+    input[type="color"] {
+        font-size: 16px !important;
+    }
+}
+
+/* Fix per orientamento landscape su mobile */
+@media (max-height: 480px) and (orientation: landscape) {
+    .container {
+        height: auto !important;
+        min-height: 100% !important;
+    }
+    
+    .dashboard {
+        grid-template-columns: 1fr !important;
+    }
+    
+    .card {
+        max-height: none !important;
+        overflow: visible !important;
+    }
+}
+
+/* Miglioramenti per il contrasto e l'accessibilità */
+@media (prefers-reduced-motion: reduce) {
+    * {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+
+/* Miglioramenti specifici per form e bottoni */
+@media (hover: hover) {
+    button:hover, .button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    }
+}
+
+@media (hover: none) {
+    /* Rimuovi effetti hover per dispositivi touch */
+    button:hover, .button:hover {
+        transform: none !important;
+        box-shadow: none !important;
+    }
+    
+    /* Aumenta area di touch */
+    button, .button, input[type="submit"] {
+        min-height: 44px !important;
+        padding: 12px 15px !important;
+    }
+}

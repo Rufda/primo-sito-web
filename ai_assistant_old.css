@@ -1,0 +1,409 @@
+/* Stili Base Assistente AI - Design Moderno */
+:root {
+    --ai-primary: #667eea; /* Blu moderno */
+    --ai-secondary: #764ba2; /* Viola */
+    --ai-accent: #f093fb; /* Rosa chiaro */
+    --ai-text: #2d3748; /* Grigio scuro */
+    --ai-text-light: #ffffff; /* Bianco */
+    --ai-bg-light: rgba(255, 255, 255, 0.95); /* Sfondo chiaro */
+    --ai-bg-card: #ffffff; /* Bianco puro per le card */
+    --ai-shadow: rgba(0, 0, 0, 0.1);
+    --ai-shadow-hover: rgba(0, 0, 0, 0.2);
+    --ai-border-radius: 20px;
+    --ai-border-radius-small: 12px;
+    --ai-transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --ai-gradient: linear-gradient(135deg, var(--ai-primary) 0%, var(--ai-secondary) 50%, var(--ai-accent) 100%);
+    --ai-glass: backdrop-filter: blur(20px);
+}
+
+.ai-assistant-container {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 1000;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* Pulsante Assistente - Design Moderno */
+.ai-assistant-button {
+    width: 64px;
+    height: 64px;
+    background: var(--ai-gradient);
+    color: var(--ai-text-light);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 8px 32px var(--ai-shadow);
+    transition: var(--ai-transition);
+    font-size: 18px;
+    font-weight: 600;
+    border: none;
+    position: relative;
+    overflow: hidden;
+    backdrop-filter: blur(20px);
+}
+
+.ai-assistant-button::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(45deg, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0) 100%);
+    border-radius: 50%;
+    transition: var(--ai-transition);
+}
+
+.ai-assistant-button:hover {
+    transform: translateY(-4px) scale(1.1);
+    box-shadow: 0 12px 40px var(--ai-shadow-hover);
+}
+
+.ai-assistant-button:hover::before {
+    background: linear-gradient(45deg, rgba(255,255,255,0.3) 0%, rgba(255,255,255,0.1) 100%);
+}
+
+.ai-assistant-button.active {
+    opacity: 0;
+    pointer-events: none;
+    transform: scale(0.8);
+}
+
+/* Chatbox Moderna */
+.ai-assistant-chatbox {
+    position: absolute;
+    bottom: 80px;
+    right: 0;
+    width: 380px;
+    height: 500px;
+    background: var(--ai-bg-card);
+    border-radius: var(--ai-border-radius);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+    transform: translateY(20px) scale(0.95);
+    opacity: 0;
+    visibility: hidden;
+    transition: var(--ai-transition);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.ai-assistant-chatbox.active {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+    visibility: visible;
+}
+
+/* Header della Chat */
+.ai-assistant-header {
+    background: var(--ai-gradient);
+    color: var(--ai-text-light);
+    padding: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-radius: var(--ai-border-radius) var(--ai-border-radius) 0 0;
+    position: relative;
+    overflow: hidden;
+}
+
+.ai-assistant-header::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(45deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 100%);
+}
+
+.ai-assistant-header-title {
+    display: flex;
+    align-items: center;
+    font-weight: 600;
+    font-size: 16px;
+    position: relative;
+    z-index: 1;
+}
+
+.ai-assistant-header-logo {
+    width: 24px;
+    height: 24px;
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    margin-right: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.ai-assistant-header-logo::before {
+    content: '🤖';
+    font-size: 14px;
+}
+
+.ai-assistant-close {
+    background: none;
+    border: none;
+    color: var(--ai-text-light);
+    font-size: 24px;
+    cursor: pointer;
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--ai-transition);
+    position: relative;
+    z-index: 1;
+}
+
+.ai-assistant-close:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: scale(1.1);
+}
+}
+
+.ai-assistant-header-logo {
+    width: 25px;
+    height: 25px;
+    background-color: var(--ai-text-light); /* Placeholder per logo */
+    border-radius: 50%;
+    /* Aggiungere un'immagine di sfondo o icona qui */
+    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23ff69b4"><path d="M12 2a10 10 0 00-9.9 9h-2.1a1 1 0 00-.8 1.6l3.5 4.7a1 1 0 001.6 0l3.5-4.7a1 1 0 00-.8-1.6H10A8 8 0 114.1 18H6a10 10 0 106-16zm-1 11v4a1 1 0 002 0v-4a1 1 0 00-2 0zm0-8v5a1 1 0 002 0V5a1 1 0 00-2 0z"/></svg>'); /* Icona robot stilizzata */
+    background-size: 60%;
+    background-position: center;
+    background-repeat: no-repeat;
+}
+
+.ai-assistant-close {
+    background: none;
+    border: none;
+    color: var(--ai-text-light);
+    font-size: 24px;
+    cursor: pointer;
+    padding: 0 5px;
+    opacity: 0.8;
+    transition: opacity 0.2s;
+}
+
+.ai-assistant-close:hover {
+    opacity: 1;
+}
+
+/* Area Messaggi */
+.ai-assistant-messages {
+    flex-grow: 1; /* Occupa lo spazio rimanente */
+    padding: 15px;
+    overflow-y: auto; /* Abilita scroll verticale */
+    display: flex;
+    flex-direction: column;
+    gap: 12px; /* Spazio tra messaggi */
+}
+
+/* Stile scrollbar */
+.ai-assistant-messages::-webkit-scrollbar {
+    width: 6px;
+}
+.ai-assistant-messages::-webkit-scrollbar-track {
+    background: transparent;
+}
+.ai-assistant-messages::-webkit-scrollbar-thumb {
+    background-color: rgba(255, 105, 180, 0.5); /* Rosa semi-trasparente */
+    border-radius: 3px;
+}
+.ai-assistant-messages::-webkit-scrollbar-thumb:hover {
+    background-color: var(--ai-primary);
+}
+
+/* Singolo Messaggio */
+.ai-assistant-message {
+    padding: 10px 15px;
+    border-radius: 12px;
+    max-width: 80%; /* Larghezza massima messaggio */
+    word-wrap: break-word; /* Va a capo se necessario */
+    line-height: 1.4;
+    font-size: 0.95em;
+}
+
+.ai-assistant-message.user {
+    background-color: var(--ai-primary-light); /* Rosa chiaro per utente */
+    color: var(--ai-text);
+    align-self: flex-end; /* Allinea a destra */
+    border-bottom-right-radius: 4px; /* Angolo diverso */
+}
+
+.ai-assistant-message.bot {
+    background-color: var(--ai-secondary); /* Bianco per bot */
+    color: var(--ai-text);
+    align-self: flex-start; /* Allinea a sinistra */
+    border-bottom-left-radius: 4px; /* Angolo diverso */
+    box-shadow: 0 1px 3px var(--ai-shadow);
+}
+
+/* Indicatore "sta scrivendo" */
+.ai-assistant-typing {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 10px 15px;
+}
+
+.ai-assistant-typing-dot {
+    width: 8px;
+    height: 8px;
+    background-color: var(--ai-primary);
+    border-radius: 50%;
+    animation: ai-typing-bounce 1.4s infinite ease-in-out both;
+}
+
+.ai-assistant-typing-dot:nth-child(1) { animation-delay: -0.32s; }
+.ai-assistant-typing-dot:nth-child(2) { animation-delay: -0.16s; }
+
+@keyframes ai-typing-bounce {
+  0%, 80%, 100% { transform: scale(0); }
+  40% { transform: scale(1.0); }
+}
+
+/* Area Suggerimenti */
+.ai-assistant-suggestions {
+    padding: 5px 15px 10px; /* Ridotto padding */
+    display: flex;
+    flex-wrap: wrap; /* Permette ai suggerimenti di andare a capo */
+    gap: 8px;
+    border-top: 1px solid rgba(0, 0, 0, 0.08); /* Separatore leggero */
+    flex-shrink: 0; /* Impedisce restringimento */
+}
+
+.ai-assistant-suggestion {
+    background-color: rgba(255, 182, 193, 0.3); /* Sfondo suggerimento */
+    color: var(--ai-accent);
+    padding: 6px 12px;
+    border-radius: 20px; /* Forma a pillola */
+    font-size: 0.85em;
+    cursor: pointer;
+    transition: background-color 0.2s, color 0.2s;
+    border: 1px solid var(--ai-primary-light);
+}
+
+.ai-assistant-suggestion:hover {
+    background-color: var(--ai-primary-light);
+    color: var(--ai-text);
+}
+
+/* Area Input */
+.ai-assistant-input-container {
+    display: flex;
+    padding: 10px 15px;
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
+    background-color: rgba(255, 255, 255, 0.7); /* Leggermente diverso per stacco */
+    flex-shrink: 0; /* Impedisce restringimento */
+}
+
+.ai-assistant-input {
+    flex-grow: 1;
+    padding: 10px 15px;
+    border: 1px solid #ddd;
+    border-radius: 20px; /* Arrotondato */
+    font-size: 0.95em;
+    margin-right: 10px;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.ai-assistant-input:focus {
+    border-color: var(--ai-primary);
+    box-shadow: 0 0 0 3px rgba(255, 105, 180, 0.2);
+}
+
+.ai-assistant-send {
+    width: 40px;
+    height: 40px;
+    background: linear-gradient(145deg, var(--ai-primary), var(--ai-accent));
+    border: none;
+    border-radius: 50%; /* Cerchio */
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--ai-transition);
+    flex-shrink: 0; /* Non restringere */
+}
+
+.ai-assistant-send:hover {
+    transform: scale(1.1);
+    box-shadow: var(--ai-futuristic-glow);
+}
+
+.ai-assistant-send-icon {
+    width: 18px;
+    height: 18px;
+    background-color: var(--ai-text-light); /* Colore icona */
+    mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>'); /* Icona invio */
+    mask-size: contain;
+    mask-repeat: no-repeat;
+    mask-position: center;
+}
+
+/* Stili per bottoni di conferma */
+.confirmation-buttons {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.confirmation-buttons button {
+    padding: 5px 10px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.9em;
+    border: 1px solid;
+}
+
+.confirmation-buttons .confirm-yes {
+    background-color: var(--ai-primary);
+    color: white;
+    border-color: var(--ai-primary);
+}
+.confirmation-buttons .confirm-yes:hover {
+    background-color: var(--ai-accent);
+}
+
+.confirmation-buttons .confirm-no {
+    background-color: #eee;
+    color: #555;
+    border-color: #ccc;
+}
+.confirmation-buttons .confirm-no:hover {
+    background-color: #ddd;
+}
+
+.confirmation-feedback {
+    font-style: italic;
+    font-size: 0.9em;
+    color: #666;
+    margin-top: 5px;
+}
+
+/* Responsive (opzionale, per schermi piccoli) */
+@media (max-width: 480px) {
+    .ai-assistant-chatbox {
+        width: calc(100% - 20px); /* Larghezza quasi piena */
+        height: calc(100% - 80px); /* Altezza quasi piena */
+        max-height: none;
+        bottom: 70px; /* Leggermente più su */
+        right: 10px;
+        left: 10px; /* Centrato */
+    }
+    .ai-assistant-button {
+        bottom: 10px;
+        right: 10px;
+    }
+}

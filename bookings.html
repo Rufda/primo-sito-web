@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Le mie Prenotazioni</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="ai_assistant.css"> <!-- Assicura che sia il CSS corretto -->
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      background: #f0f0f0;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 10px;
+      text-align: left;
+    }
+    
+    /* Stili per AI Assistant */
+    .ai-assistant-container {
+      position: fixed !important;
+      bottom: 20px !important;
+      right: 20px !important;
+      z-index: 9999 !important;
+      font-family: Arial, sans-serif !important;
+    }
+    
+    .ai-assistant-button {
+      width: 60px !important;
+      height: 60px !important;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%) !important;
+      color: white !important;
+      border-radius: 50% !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      cursor: pointer !important;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3) !important;
+      border: none !important;
+      font-size: 18px !important;
+      pointer-events: auto !important;
+    }
+    
+    .ai-assistant-chatbox {
+      position: fixed !important;
+      bottom: 90px !important;
+      right: 20px !important;
+      width: 350px !important;
+      height: 450px !important;
+      background: white !important;
+      border-radius: 12px !important;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3) !important;
+      display: none !important;
+      flex-direction: column !important;
+      border: 1px solid #e0e0e0 !important;
+    }
+    
+    .ai-assistant-chatbox.active { display: flex !important; }
+    .ai-assistant-header { background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%) !important; color: white !important; padding: 15px 20px !important; display: flex !important; justify-content: space-between !important; align-items: center !important; }
+    .ai-assistant-close { background: none !important; border: none !important; color: white !important; font-size: 20px !important; cursor: pointer !important; padding: 5px !important; }
+    .ai-assistant-messages { flex: 1 !important; padding: 15px !important; overflow-y: auto !important; display: flex !important; flex-direction: column !important; gap: 12px !important; background: #f8f9fa !important; }
+    .ai-assistant-message { max-width: 80% !important; padding: 10px 15px !important; border-radius: 15px !important; font-size: 14px !important; }
+    .ai-assistant-message.user { background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%) !important; color: white !important; align-self: flex-end !important; }
+    .ai-assistant-message.bot { background: white !important; color: #333 !important; align-self: flex-start !important; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important; border: 1px solid #e0e0e0 !important; }
+    .ai-assistant-input-container { display: flex !important; padding: 15px !important; gap: 10px !important; border-top: 1px solid #e0e0e0 !important; background: white !important; }
+    .ai-assistant-input { flex: 1 !important; padding: 10px 15px !important; border: 1px solid #ddd !important; border-radius: 20px !important; font-size: 14px !important; outline: none !important; }
+    .ai-assistant-send { width: 40px !important; height: 40px !important; background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%) !important; border: none !important; border-radius: 50% !important; cursor: pointer !important; display: flex !important; align-items: center !important; justify-content: center !important; }
+  </style>
+</head>
+<body>
+  <h2>Prenotazioni Effettuate</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Username</th>
+        <th>Data Disponibilità</th>
+        <th>Orario Prenotato</th>
+        <th>Durata</th>
+      </tr>
+    </thead>
+    <tbody id="prenotazioniBody"></tbody>
+  </table>
+  <script src="config.js"></script>
+  <script src="firebase-wrapper.js"></script>
+  <script src="ai_assistant.js"></script> <!-- Assicura che sia lo script corretto e in ordine -->
+  <script type="module" src="bookings.js"></script>
+</body>
+</html>

@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registrazione</title>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="ai_assistant.css"> <!-- Assicura che sia il CSS corretto -->
+    <style>
+        body {
+            background: none;
+            position: relative;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            font-family: 'Arial', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        body::before {
+            content: "";
+            background: url("foto2.png") center center / cover no-repeat;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            opacity: 0.9;
+        }
+        .container {
+            width: 100%;
+            max-width: 400px;
+            padding: 30px;
+            background-color: rgba(255, 255, 255, 0.9);
+            border-radius: 15px;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+            animation: fadeIn 0.5s ease-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        h2 {
+            text-align: center;
+            color: #ff69b4;
+            margin-bottom: 30px;
+            font-size: 28px;
+        }
+        form {
+            display: flex;
+            flex-direction: column;
+        }
+        input {
+            padding: 12px 15px;
+            margin-bottom: 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+        input:focus {
+            outline: none;
+            border-color: #ff69b4;
+            box-shadow: 0 0 0 2px rgba(255, 105, 180, 0.3);
+        }
+        button {
+            background-color: #ff69b4;
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            margin-top: 5px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #e6007e;
+        }
+        .error-message {
+            color: #e74c3c;
+            margin-top: 10px;
+            text-align: center;
+            display: none;
+        }
+        .success-message {
+            color: #2ecc71;
+            margin-top: 10px;
+            text-align: center;
+            display: none;
+        }
+        p {
+            text-align: center;
+            margin-top: 20px;
+        }
+        a {
+            color: #ff69b4;
+            text-decoration: none;
+            font-weight: bold;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        .password-strength {
+            margin-top: -10px;
+            margin-bottom: 15px;
+            font-size: 14px;
+        }
+        .strength-meter {
+            height: 4px;
+            width: 100%;
+            background-color: #eee;
+            border-radius: 2px;
+            margin-bottom: 5px;
+        }
+        .strength-meter div {
+            height: 100%;
+            width: 0;
+            border-radius: 2px;
+            transition: width 0.3s, background-color 0.3s;
+        }
+        .password-strength span {
+            font-size: 12px;
+        }
+        .hint-list {
+            margin-top: 5px;
+            font-size: 12px;
+            color: #666;
+            padding-left: 20px;
+        }
+        .hint-list li {
+            margin-bottom: 2px;
+        }
+        .hint-list li.valid {
+            color: #2ecc71;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Registrazione</h2>
+        <form id="registrationForm">
+            <input type="text" id="nome" placeholder="Nome Completo" required autocomplete="name">
+            <input type="email" id="email" placeholder="Email" required autocomplete="email">
+            <input type="password" id="password" placeholder="Password" required autocomplete="new-password">
+            <div class="password-strength">
+                <div class="strength-meter">
+                    <div id="strengthBar"></div>
+                </div>
+                <span id="strengthText">Forza Password</span>
+                <ul class="hint-list">
+                    <li id="hint-length">Almeno 8 caratteri</li>
+                    <li id="hint-uppercase">Almeno una lettera maiuscola</li>
+                    <li id="hint-lowercase">Almeno una lettera minuscola</li>
+                    <li id="hint-number">Almeno un numero</li>
+                    <li id="hint-special">Almeno un carattere speciale (@$!%*?&)</li>
+                </ul>
+            </div>
+            <input type="password" id="confirmPassword" placeholder="Conferma Password" required autocomplete="new-password">
+            <button type="submit">Registrati</button>
+            <div id="errorMessage" class="error-message"></div>
+            <div id="successMessage" class="success-message"></div>
+        </form>
+        <p>Sei già registrato? <a href="index.html">Effettua il login</a></p>
+    </div>
+    <script src="config.js"></script>
+    <script src="firebase-wrapper.js"></script>
+    <script src="ai_assistant.js"></script> <!-- Assicura che sia lo script corretto e in ordine -->
+    <script type="module" src="registrazione.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const password = document.getElementById('password');
+            const strengthBar = document.getElementById('strengthBar');
+            const strengthText = document.getElementById('strengthText');
+            const hintLength = document.getElementById('hint-length');
+            const hintUppercase = document.getElementById('hint-uppercase');
+            const hintLowercase = document.getElementById('hint-lowercase');
+            const hintNumber = document.getElementById('hint-number');
+            const hintSpecial = document.getElementById('hint-special');
+            
+            password.addEventListener('input', function() {
+                const value = password.value;
+                let strength = 0;
+                let color = '';
+                let text = '';
+                
+                const hasLength = value.length >= 8;
+                const hasUppercase = /[A-Z]/.test(value);
+                const hasLowercase = /[a-z]/.test(value);
+                const hasNumber = /[0-9]/.test(value);
+                const hasSpecial = /[@$!%*?&]/.test(value);
+                
+                hintLength.className = hasLength ? 'valid' : '';
+                hintUppercase.className = hasUppercase ? 'valid' : '';
+                hintLowercase.className = hasLowercase ? 'valid' : '';
+                hintNumber.className = hasNumber ? 'valid' : '';
+                hintSpecial.className = hasSpecial ? 'valid' : '';
+                
+                if (hasLength) strength += 20;
+                if (hasUppercase) strength += 20;
+                if (hasLowercase) strength += 20;
+                if (hasNumber) strength += 20;
+                if (hasSpecial) strength += 20;
+                
+                if (strength < 40) {
+                    color = '#ff4d4d';
+                    text = 'Debole';
+                } else if (strength < 80) {
+                    color = '#ffa64d';
+                    text = 'Media';
+                } else {
+                    color = '#2ecc71';
+                    text = 'Forte';
+                }
+                
+                strengthBar.style.width = strength + '%';
+                strengthBar.style.backgroundColor = color;
+                strengthText.textContent = 'Forza Password: ' + text;
+                strengthText.style.color = color;
+            });
+
+            document.getElementById("registrationForm").addEventListener("submit", async function(event) {
+                event.preventDefault();
+                
+                const nome = appConfig.sanitizeInput(document.getElementById("nome").value.trim());
+                const email = document.getElementById("email").value.trim();
+                const password = document.getElementById("password").value;
+                const confirmPassword = document.getElementById("confirmPassword").value;
+                const errorMessage = document.getElementById("errorMessage");
+                const successMessage = document.getElementById("successMessage");
+                
+                errorMessage.style.display = "none";
+                successMessage.style.display = "none";
+                
+                try {
+                    if (!appConfig.validateEmail(email)) {
+                        errorMessage.textContent = "Formato email non valido";
+                        errorMessage.style.display = "block";
+                        return;
+                    }
+                    
+                    if (!appConfig.validatePassword(password)) {
+                        errorMessage.textContent = "La password non soddisfa i requisiti di sicurezza";
+                        errorMessage.style.display = "block";
+                        return;
+                    }
+                    
+                    if (password !== confirmPassword) {
+                        errorMessage.textContent = "Le password non corrispondono";
+                        errorMessage.style.display = "block";
+                        return;
+                    }
+                    
+                    const userCredential = await firebase.auth().createUserWithEmailAndPassword(email, password);
+                    const user = userCredential.user;
+                    
+                    await firebase.database().ref('users/' + user.uid).set({
+                        nome: nome,
+                        email: email,
+                        role: 'user',
+                        createdAt: firebase.database.ServerValue.TIMESTAMP
+                    });
+                    
+                    await firebase.auth().currentUser.updateProfile({
+                        displayName: nome
+                    });
+                    
+                    successMessage.textContent = "Registrazione completata con successo!";
+                    successMessage.style.display = "block";
+                    
+                    document.getElementById("nome").value = "";
+                    document.getElementById("email").value = "";
+                    document.getElementById("password").value = "";
+                    document.getElementById("confirmPassword").value = "";
+                    
+                    setTimeout(() => {
+                        window.location.href = "vDisponibilita.html";
+                    }, 1500);
+                } catch (error) {
+                    let errMsg = "";
+                    
+                    switch (error.code) {
+                        case "auth/email-already-in-use":
+                            errMsg = "Questa email è già registrata";
+                            break;
+                        case "auth/weak-password":
+                            errMsg = "La password deve essere più sicura";
+                            break;
+                        case "auth/invalid-email":
+                            errMsg = "Formato email non valido";
+                            break;
+                        default:
+                            errMsg = "Errore durante la registrazione: " + error.message;
+                    }
+                    
+                    errorMessage.textContent = errMsg;
+                    errorMessage.style.display = "block";
+                    console.error("Errore registrazione:", error);
+                }
+            });
+        });
+    </script>
+</body>
+</html>
