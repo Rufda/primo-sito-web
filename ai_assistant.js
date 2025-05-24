@@ -13,7 +13,7 @@ let prenotazioniData = [];
 let geminiAPI = null;
 let isGeminiReady = false;
 let lastApiCallTime = 0;
-const MIN_API_CALL_INTERVAL = 1000;
+const MIN_API_CALL_INTERVAL = 1000; // Millisecondi
 
 // Inizializza la configurazione Gemini AI
 function initializeGeminiAPI() {
@@ -27,23 +27,131 @@ function initializeGeminiAPI() {
             maxOutputTokens: geminiConfig.maxOutputTokens || 1000
         };
         isGeminiReady = true;
-        console.log("Gemini AI configurato e pronto!");
+        console.log("AI Assistant: Gemini AI configurato e pronto!");
     } else {
-        console.error("Configurazione Gemini mancante! L'assistente non funzionerà.");
+        console.error("AI Assistant: Configurazione Gemini mancante! L'assistente non funzionerà.");
         isGeminiReady = false;
     }
 }
 
+// Function Declarations for Gemini API
+const aiFunctionDeclarations = [
+    {
+        name: "getAvailableSlots",
+        description: "Recupera gli slot di tempo disponibili per una data specifica o tutti gli slot futuri se non viene fornita alcuna data. Restituisce un elenco di slot disponibili, limitato ai primi 10 risultati. Chiedi sempre conferma prima di prenotare uno slot specifico restituito da questa funzione, specialmente se l'utente non ha specificato un ID slot.",
+        parameters: {
+            type: "object",
+            properties: {
+                date: {
+                    type: "string",
+                    description: "La data per verificare la disponibilità nel formato YYYY-MM-DD. Se nullo, restituisce tutti gli slot imminenti."
+                }
+            }
+        }
+    },
+    {
+        name: "addAvailability",
+        description: "Aggiunge un nuovo slot di disponibilità al sistema. Richiede privilegi di amministratore. Restituisce un ID univoco per il nuovo slot creato.",
+        parameters: {
+            type: "object",
+            properties: {
+                date: { type: "string", description: "La data per cui aggiungere la disponibilità (YYYY-MM-DD)." },
+                startTime: { type: "string", description: "L'ora di inizio della disponibilità (HH:MM)." },
+                endTime: { type: "string", description: "L'ora di fine della disponibilità (HH:MM)." },
+                description: { type: "string", description: "Una descrizione opzionale per lo slot di disponibilità." }
+            },
+            required: ["date", "startTime", "endTime"]
+        }
+    },
+    {
+        name: "removeAvailability",
+        description: "Rimuove uno slot di disponibilità esistente dal sistema in una data e ora di inizio specificate. Richiede privilegi di amministratore.",
+        parameters: {
+            type: "object",
+            properties: {
+                date: { type: "string", description: "La data da cui rimuovere la disponibilità (YYYY-MM-DD)." },
+                startTime: { type: "string", description: "L'ora di inizio dello slot da rimuovere (HH:MM)." }
+            },
+            required: ["date", "startTime"]
+        }
+    },
+    {
+        name: "createBooking",
+        description: "Crea una nuova prenotazione per uno slot di disponibilità. L'utente deve essere autenticato. Verifica se lo slot è ancora disponibile prima di tentare la prenotazione. Restituisce i dettagli della prenotazione creata.",
+        parameters: {
+            type: "object",
+            properties: {
+                slotId: { type: "string", description: "L'ID univoco dello slot di disponibilità da prenotare." },
+                date: { type: "string", description: "La data della prenotazione (YYYY-MM-DD)." },
+                startTime: { type: "string", description: "L'ora di inizio della prenotazione (HH:MM)." },
+                endTime: { type: "string", description: "L'ora di fine della prenotazione (HH:MM)." },
+                customerName: { type: "string", description: "Il nome del cliente per la prenotazione." },
+                customerEmail: { type: "string", description: "L'email del cliente per la prenotazione." },
+                customerPhone: { type: "string", description: "Il numero di telefono del cliente (opzionale)." },
+                notes: { type: "string", description: "Eventuali note aggiuntive per la prenotazione (opzionale)." }
+            },
+            required: ["slotId", "date", "startTime", "endTime", "customerName", "customerEmail"]
+        }
+    },
+    {
+        name: "getUserBookings",
+        description: "Recupera un elenco di prenotazioni per l'utente attualmente autenticato o per un ID utente specificato (se l'utente corrente è un amministratore).",
+        parameters: {
+            type: "object",
+            properties: {
+                userId: { type: "string", description: "L'ID dell'utente per cui recuperare le prenotazioni (opzionale, utilizzabile solo dagli amministratori)." }
+            }
+        }
+    },
+    {
+        name: "getAllBookings",
+        description: "Recupera tutte le prenotazioni nel sistema. Può essere filtrato per data. Richiede privilegi di amministratore.",
+        parameters: {
+            type: "object",
+            properties: {
+                date: { type: "string", description: "La data per cui filtrare le prenotazioni (YYYY-MM-DD, opzionale)." }
+            }
+        }
+    },
+    {
+        name: "cancelBooking",
+        description: "Annulla una prenotazione esistente. Gli utenti possono cancellare le proprie prenotazioni; gli amministratori possono cancellare qualsiasi prenotazione.",
+        parameters: {
+            type: "object",
+            properties: {
+                bookingId: { type: "string", description: "L'ID univoco della prenotazione da annullare." }
+            },
+            required: ["bookingId"]
+        }
+    },
+    {
+        name: "getCurrentUser",
+        description: "Recupera le informazioni sull'utente attualmente autenticato, incluso se è un amministratore.",
+        parameters: { type: "object", properties: {} }
+    },
+    {
+        name: "getSystemStats",
+        description: "Recupera le statistiche di sistema come il numero totale di prenotazioni, le prenotazioni di oggi e il numero di slot disponibili. Richiede privilegi di amministratore.",
+        parameters: { type: "object", properties: {} }
+    }
+];
+
 // Sistema di funzioni disponibili per l'AI
 const availableFunctions = {
-    // Funzioni per le disponibilità
-    getAvailableSlots: async (date = null) => {
-        if (!disponibilitaData) return [];
+    getAvailableSlots: async ({ date = null } = {}) => {
+        console.log(`AI Assistant: getAvailableSlots called. Date: ${date}`);
+        if (!firebaseReady || !window.firebaseWrapper || !window.firebaseWrapper.isInitialized) {
+            throw new Error("Servizio Firebase non pronto. Riprova tra poco.");
+        }
+        if (!disponibilitaData) {
+            console.warn("AI Assistant: getAvailableSlots - disponibilitaData non ancora caricato.");
+            return { message: "Dati sulle disponibilità non ancora caricati. Riprova tra un momento." };
+        }
         
         const slots = [];
-        const dates = date ? [date] : Object.keys(disponibilitaData).sort();
+        const datesToScan = date ? [date] : Object.keys(disponibilitaData).sort();
         
-        for (const dateKey of dates) {
+        for (const dateKey of datesToScan) {
             const daySlots = disponibilitaData[dateKey];
             if (daySlots) {
                 for (const slotId in daySlots) {
@@ -53,7 +161,7 @@ const availableFunctions = {
                         const slotDateTime = new Date(dateKey);
                         slotDateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
                         
-                        if (slotDateTime > new Date()) {
+                        if (slotDateTime > new Date()) { // Considera solo slot futuri
                             slots.push({
                                 id: slotId,
                                 date: dateKey,
@@ -66,14 +174,24 @@ const availableFunctions = {
                 }
             }
         }
+        if (slots.length === 0) {
+            return { message: date ? `Nessuno slot disponibile trovato per il ${date}.` : "Nessuno slot disponibile trovato." };
+        }
         return slots.slice(0, 10); // Limita a 10 risultati
     },
 
-    addAvailability: async (date, startTime, endTime, description = '') => {
-        if (!isAdmin) throw new Error("Operazione non autorizzata");
-        
+    addAvailability: async ({ date, startTime, endTime, description = '' }) => {
+        console.log(`AI Assistant: addAvailability called. Date: ${date}, Start: ${startTime}, End: ${endTime}, Desc: ${description}`);
+        if (!isAdmin) throw new Error("Operazione non autorizzata. Solo gli amministratori possono aggiungere disponibilità.");
+        if (!date || !startTime || !endTime) throw new Error("Data, ora di inizio e ora di fine sono obbligatorie.");
+        if (!firebaseReady || !window.firebaseWrapper || !window.firebaseWrapper.isInitialized) {
+            throw new Error("Servizio Firebase non pronto. Riprova tra poco.");
+        }
+
+        const path = `disponibilita/${date}`;
+        console.log(`AI Assistant: addAvailability - Path Firebase: ${path}`);
         try {
-            const dateRef = window.firebaseWrapper.ref(`disponibilita/${date}`);
+            const dateRef = window.firebaseWrapper.ref(path);
             const newSlotRef = await window.firebaseWrapper.push(dateRef, {
                 startTime,
                 endTime,
@@ -81,742 +199,359 @@ const availableFunctions = {
                 isActive: true,
                 isBooked: false
             });
-            return { success: true, id: newSlotRef.key };
+            console.log(`AI Assistant: addAvailability - Slot aggiunto con ID: ${newSlotRef.key} a ${path}`);
+            return { success: true, id: newSlotRef.key, message: `Disponibilità aggiunta per ${date} dalle ${startTime} alle ${endTime}.` };
         } catch (error) {
-            throw new Error(`Errore nell'aggiunta: ${error.message}`);
+            console.error(`AI Assistant: addAvailability - Errore Firebase nell'aggiunta a ${path}:`, error);
+            throw new Error(`Errore Firebase nell'aggiunta della disponibilità: ${error.message}`);
         }
     },
 
-    removeAvailability: async (date, startTime) => {
-        if (!isAdmin) throw new Error("Operazione non autorizzata");
-        
-        const slots = disponibilitaData[date];
-        if (!slots) throw new Error("Nessuna disponibilità trovata per questa data");
+    removeAvailability: async ({ date, startTime }) => {
+        console.log(`AI Assistant: removeAvailability called. Date: ${date}, Start: ${startTime}`);
+        if (!isAdmin) throw new Error("Operazione non autorizzata. Solo gli amministratori possono rimuovere disponibilità.");
+        if (!date || !startTime) throw new Error("Data e ora di inizio sono obbligatorie.");
+        if (!firebaseReady || !window.firebaseWrapper || !window.firebaseWrapper.isInitialized) {
+            throw new Error("Servizio Firebase non pronto. Riprova tra poco.");
+        }
+
+        const slotsOnDate = disponibilitaData[date];
+        if (!slotsOnDate) throw new Error(`Nessuna disponibilità trovata per la data ${date}.`);
         
         let slotIdToRemove = null;
-        for (const id in slots) {
-            if (slots[id].startTime === startTime) {
+        for (const id in slotsOnDate) {
+            if (slotsOnDate[id].startTime === startTime) {
                 slotIdToRemove = id;
                 break;
             }
         }
         
-        if (!slotIdToRemove) throw new Error("Slot non trovato");
+        if (!slotIdToRemove) throw new Error(`Slot non trovato per la data ${date} alle ${startTime}.`);
         
+        const path = `disponibilita/${date}/${slotIdToRemove}`;
+        console.log(`AI Assistant: removeAvailability - Path Firebase: ${path}`);
         try {
-            const slotRef = window.firebaseWrapper.ref(`disponibilita/${date}/${slotIdToRemove}`);
-            await window.firebaseWrapper.remove(slotRef);
-            return { success: true };
+            await window.firebaseWrapper.remove(window.firebaseWrapper.ref(path));
+            console.log(`AI Assistant: removeAvailability - Slot rimosso: ${path}`);
+            return { success: true, message: `Disponibilità ${date} ${startTime} rimossa.` };
         } catch (error) {
-            throw new Error(`Errore nella rimozione: ${error.message}`);
+            console.error(`AI Assistant: removeAvailability - Errore Firebase nella rimozione da ${path}:`, error);
+            throw new Error(`Errore Firebase nella rimozione: ${error.message}`);
         }
     },
 
-    // Funzioni per le prenotazioni
-    createBooking: async (slotId, date, startTime, endTime, customerName, customerEmail, customerPhone = '', notes = '') => {
-        if (!currentUser) throw new Error("Devi essere autenticato per prenotare");
-        
-        // Verifica che lo slot sia ancora disponibile
-        const slots = disponibilitaData[date];
-        if (!slots || !slots[slotId] || slots[slotId].isBooked) {
-            throw new Error("Slot non più disponibile");
+    createBooking: async ({ slotId, date, startTime, endTime, customerName, customerEmail, customerPhone = '', notes = '' }) => {
+        console.log(`AI Assistant: createBooking called. SlotID: ${slotId}, Date: ${date}, Name: ${customerName}`);
+        if (!currentUser) throw new Error("Devi essere autenticato per prenotare. Effettua il login o registrati.");
+        if (!slotId || !date || !startTime || !endTime || !customerName || !customerEmail) {
+            throw new Error("Parametri mancanti. Sono richiesti slotId, date, startTime, endTime, customerName, customerEmail.");
+        }
+        if (!firebaseReady || !window.firebaseWrapper || !window.firebaseWrapper.isInitialized) {
+            throw new Error("Servizio Firebase non pronto. Riprova tra poco.");
+        }
+
+        const slotDataPath = `disponibilita/${date}/${slotId}`;
+        const slotSnapshot = await window.firebaseWrapper.get(window.firebaseWrapper.ref(slotDataPath));
+        if (!slotSnapshot.exists() || slotSnapshot.val().isBooked) {
+             console.warn(`AI Assistant: createBooking - Slot ${slotId} su ${date} non disponibile o già prenotato.`);
+            throw new Error(`Lo slot ${slotId} per la data ${date} non è più disponibile o non esiste.`);
         }
         
+        console.log(`AI Assistant: createBooking - Path prenotazioni: prenotazioni, Path slot: ${slotDataPath}`);
         try {
             const bookingData = {
-                id: null,
-                name: customerName,
-                email: customerEmail,
-                phone: customerPhone,
-                notes: notes,
-                userId: currentUser.uid,
-                userEmail: currentUser.email,
-                timestamp: new Date().toISOString(),
-                slotId: slotId,
-                date: date,
-                startTime: startTime,
-                endTime: endTime,
-                status: 'confirmed'
+                name: customerName, email: customerEmail, phone: customerPhone, notes: notes,
+                userId: currentUser.uid, userEmail: currentUser.email,
+                timestamp: new Date().toISOString(), slotId, date, startTime, endTime, status: 'confirmed'
             };
 
-            const bookingRef = window.firebaseWrapper.ref('prenotazioni').push();
-            bookingData.id = bookingRef.key;
-
-            await bookingRef.set(bookingData);
+            const newBookingRef = await window.firebaseWrapper.push(window.firebaseWrapper.ref('prenotazioni'), bookingData);
+            bookingData.id = newBookingRef.key; // Aggiungi l'ID generato alla risposta
             
-            // Marca lo slot come prenotato
-            await window.firebaseWrapper.ref(`disponibilita/${date}/${slotId}`)
-                .update({ isBooked: true, bookingId: bookingData.id });
-
-            return { success: true, bookingId: bookingData.id, bookingData };
+            await window.firebaseWrapper.update(window.firebaseWrapper.ref(slotDataPath), { isBooked: true, bookingId: newBookingRef.key });
+            console.log(`AI Assistant: createBooking - Prenotazione creata ID: ${newBookingRef.key}, Slot ${slotId} aggiornato.`);
+            return { success: true, bookingId: newBookingRef.key, bookingData };
         } catch (error) {
-            throw new Error(`Errore nella prenotazione: ${error.message}`);
+            console.error(`AI Assistant: createBooking - Errore Firebase:`, error);
+            throw new Error(`Errore Firebase nella creazione della prenotazione: ${error.message}`);
         }
     },
 
-    getUserBookings: async (userId = null) => {
+    getUserBookings: async ({ userId = null } = {}) => {
         const targetUserId = userId || (currentUser ? currentUser.uid : null);
-        if (!targetUserId) throw new Error("Utente non identificato");
+        console.log(`AI Assistant: getUserBookings called. TargetUserID: ${targetUserId}`);
+        if (!targetUserId) throw new Error("Utente non identificato. Impossibile recuperare le prenotazioni.");
+        if (!firebaseReady || !window.firebaseWrapper || !window.firebaseWrapper.isInitialized) {
+            throw new Error("Servizio Firebase non pronto. Riprova tra poco.");
+        }
+        if (!prenotazioniData) {
+             console.warn("AI Assistant: getUserBookings - prenotazioniData non ancora caricato.");
+            return { message: "Dati sulle prenotazioni non ancora caricati. Riprova tra un momento." };
+        }
         
-        return prenotazioniData.filter(booking => booking.userId === targetUserId);
+        const userBookings = prenotazioniData.filter(booking => booking.userId === targetUserId);
+        if (userBookings.length === 0) return { message: "Nessuna prenotazione trovata per questo utente." };
+        return userBookings;
     },
 
-    getAllBookings: async (date = null) => {
-        if (!isAdmin) throw new Error("Operazione non autorizzata");
+    getAllBookings: async ({ date = null } = {}) => {
+        console.log(`AI Assistant: getAllBookings called. Date: ${date}`);
+        if (!isAdmin) throw new Error("Operazione non autorizzata. Solo gli amministratori possono visualizzare tutte le prenotazioni.");
+        if (!firebaseReady || !window.firebaseWrapper || !window.firebaseWrapper.isInitialized) {
+            throw new Error("Servizio Firebase non pronto. Riprova tra poco.");
+        }
+        if (!prenotazioniData) {
+            console.warn("AI Assistant: getAllBookings - prenotazioniData non ancora caricato.");
+            return { message: "Dati sulle prenotazioni non ancora caricati. Riprova tra un momento." };
+        }
         
+        let bookingsToReturn = prenotazioniData;
         if (date) {
-            return prenotazioniData.filter(booking => booking.date === date);
+            bookingsToReturn = prenotazioniData.filter(booking => booking.date === date);
         }
-        return prenotazioniData;
+        if (bookingsToReturn.length === 0) return { message: date ? `Nessuna prenotazione trovata per la data ${date}.` : "Nessuna prenotazione trovata nel sistema." };
+        return bookingsToReturn;
     },
 
-    cancelBooking: async (bookingId) => {
+    cancelBooking: async ({ bookingId }) => {
+        console.log(`AI Assistant: cancelBooking called. BookingID: ${bookingId}`);
+        if (!bookingId) throw new Error("ID prenotazione mancante.");
+        if (!firebaseReady || !window.firebaseWrapper || !window.firebaseWrapper.isInitialized) {
+            throw new Error("Servizio Firebase non pronto. Riprova tra poco.");
+        }
+
         const booking = prenotazioniData.find(b => b.id === bookingId);
-        if (!booking) throw new Error("Prenotazione non trovata");
+        if (!booking) throw new Error(`Prenotazione con ID ${bookingId} non trovata.`);
         
-        // Verifica autorizzazioni
-        if (!isAdmin && booking.userId !== currentUser?.uid) {
-            throw new Error("Non autorizzato a cancellare questa prenotazione");
+        if (!isAdmin && (!currentUser || booking.userId !== currentUser.uid)) {
+            throw new Error("Non autorizzato a cancellare questa prenotazione.");
         }
         
+        const bookingPath = `prenotazioni/${bookingId}`;
+        const slotPath = `disponibilita/${booking.date}/${booking.slotId}`;
+        console.log(`AI Assistant: cancelBooking - Path prenotazione: ${bookingPath}, Path slot: ${slotPath}`);
         try {
-            // Rimuovi prenotazione
-            await window.firebaseWrapper.ref(`prenotazioni/${bookingId}`).remove();
-            
-            // Libera lo slot
-            await window.firebaseWrapper.ref(`disponibilita/${booking.date}/${booking.slotId}`)
-                .update({ isBooked: false, bookingId: null });
-                
-            return { success: true };
+            await window.firebaseWrapper.remove(window.firebaseWrapper.ref(bookingPath));
+            await window.firebaseWrapper.update(window.firebaseWrapper.ref(slotPath), { isBooked: false, bookingId: null });
+            console.log(`AI Assistant: cancelBooking - Prenotazione ${bookingId} rimossa, slot ${booking.slotId} liberato.`);
+            return { success: true, message: `Prenotazione ${bookingId} cancellata con successo.` };
         } catch (error) {
-            throw new Error(`Errore nella cancellazione: ${error.message}`);
+            console.error(`AI Assistant: cancelBooking - Errore Firebase:`, error);
+            throw new Error(`Errore Firebase nella cancellazione: ${error.message}`);
         }
     },
 
-    // Funzioni di utilità
     getCurrentUser: () => {
+        console.log("AI Assistant: getCurrentUser called.");
         return currentUser ? {
-            uid: currentUser.uid,
-            email: currentUser.email,
-            displayName: currentUser.displayName,
-            isAdmin: isAdmin
+            uid: currentUser.uid, email: currentUser.email,
+            displayName: currentUser.displayName, isAdmin: isAdmin
         } : null;
     },
 
     getSystemStats: async () => {
-        if (!isAdmin) throw new Error("Operazione non autorizzata");
+        console.log("AI Assistant: getSystemStats called.");
+        if (!isAdmin) throw new Error("Operazione non autorizzata. Solo gli amministratori possono visualizzare le statistiche.");
+        if (!firebaseReady || !window.firebaseWrapper || !window.firebaseWrapper.isInitialized) {
+            throw new Error("Servizio Firebase non pronto. Riprova tra poco.");
+        }
         
         const today = new Date().toISOString().split('T')[0];
         const totalBookings = prenotazioniData.length;
         const todaysBookings = prenotazioniData.filter(b => b.date === today).length;
-        const availableSlots = await availableFunctions.getAvailableSlots();
         
+        // Chiamata interna sicura, non diretta all'API
+        const availableSlotsResult = await this.getAvailableSlots(); 
+        const availableSlotsCount = Array.isArray(availableSlotsResult) ? availableSlotsResult.length : 0;
+
         return {
-            totalBookings,
-            todaysBookings,
-            availableSlotsCount: availableSlots.length,
-            isAdmin: isAdmin
+            totalBookings, todaysBookings, availableSlotsCount, isAdmin,
+            message: `Statistiche: ${totalBookings} prenotazioni totali, ${todaysBookings} oggi, ${availableSlotsCount} slot disponibili.`
         };
     }
 };
 
 // Funzione principale per chiamare Gemini AI con accesso alle funzioni del sistema
-async function callGeminiAIWithSystemAccess(prompt, context = {}) {
+async function callGeminiAIWithSystemAccess(prompt, history = []) {
     if (!isGeminiReady) {
+        console.error("AI Assistant: callGeminiAIWithSystemAccess - Gemini AI non configurato.");
         throw new Error("Gemini AI non configurato");
     }
-    
-    // Limita frequenza chiamate API
+     if (!firebaseReady || !window.firebaseWrapper || !window.firebaseWrapper.isInitialized) {
+        console.warn("AI Assistant: callGeminiAIWithSystemAccess - Firebase non pronto. L'AI potrebbe non avere dati aggiornati.");
+        // Non lanciare errore qui, l'AI potrebbe comunque rispondere a domande generiche
+    }
+
+
     const now = Date.now();
     if (now - lastApiCallTime < MIN_API_CALL_INTERVAL) {
         await new Promise(resolve => setTimeout(resolve, MIN_API_CALL_INTERVAL - (now - lastApiCallTime)));
     }
     lastApiCallTime = Date.now();
-    
-    // Prepara il contesto completo del sistema
+
     const currentPage = window.location.pathname.split("/").pop() || "home";
-    const systemContext = await prepareSystemContext();
-    
+    const systemContext = await prepareSystemContext(); 
+
     const systemPrompt = `Sei Miller AI, l'assistente virtuale avanzato di un centro estetico/benessere.
-Hai accesso completo al sistema e puoi eseguire TUTTE le operazioni richieste dall'utente.
-
-INFORMAZIONI SISTEMA:
-- Utente corrente: ${systemContext.currentUser ? `${systemContext.currentUser.email} (${systemContext.currentUser.isAdmin ? 'Admin' : 'Cliente'})` : 'Non autenticato'}
+Il tuo obiettivo è assistere gli utenti fornendo informazioni, gestendo disponibilità e prenotazioni utilizzando gli strumenti a tua disposizione.
+Rispondi sempre in italiano. Sii cortese e professionale.
+Quando usi uno strumento e ottieni un risultato, presenta quel risultato all'utente in modo chiaro e naturale. Non limitarti a restituire i dati JSON.
+Se un'operazione fallisce o un utente non è autorizzato, spiegalo gentilmente.
+Contesto attuale:
+- Utente: ${systemContext.currentUser ? `${systemContext.currentUser.email} (${systemContext.currentUser.isAdmin ? 'Admin' : 'Cliente'})` : 'Non autenticato'}
 - Pagina: ${currentPage}
-- Disponibilità totali: ${systemContext.availableSlotsCount}
-- Prenotazioni totali: ${systemContext.totalBookings}
-- Prenotazioni oggi: ${systemContext.todaysBookings}
+- Data e ora correnti: ${new Date().toLocaleString('it-IT')}
+Non chiedere informazioni già disponibili nel contesto, come l'email dell'utente se è autenticato.
+Prima di eseguire un'azione che modifica i dati (es. createBooking, addAvailability, cancelBooking), se l'utente non ha fornito tutti i dettagli necessari nella sua richiesta iniziale, chiedi conferma o ulteriori dettagli.
+Se l'utente chiede di "vedere" o "mostrare" qualcosa, usa la funzione appropriata e poi descrivi i risultati.
+Se l'utente fa una domanda generica, rispondi direttamente senza usare funzioni se non necessario.
+Se una funzione restituisce un messaggio di errore o un esito negativo, comunicalo all'utente in modo chiaro.
+Se l'utente chiede di fare qualcosa per cui non ha i permessi (es. un non-admin che cerca di aggiungere disponibilità), informalo che non ha i permessi necessari.`;
 
-FUNZIONI DISPONIBILI:
-${Object.keys(availableFunctions).map(func => `- ${func}`).join('\n')}
+    const tools = [{ functionDeclarations: aiFunctionDeclarations }];
+    let requestContents = [];
 
-COMPORTAMENTO:
-1. Analizza la richiesta dell'utente
-2. Se richiede un'azione, ESEGUILA usando le funzioni disponibili
-3. Fornisci una risposta naturale e completa
-4. Se l'azione fallisce, spiega il motivo e suggerisci alternative
-
-ISTRUZIONI SPECIALI:
-- Per le prenotazioni, richiedi SEMPRE nome, email (se non autenticato)
-- Mostra sempre i dettagli delle azioni eseguite
-- Sii proattivo nel suggerire azioni correlate
-- Se l'utente non è autenticato per certe operazioni, spiegaglielo
-- Formatta bene date e orari (formato italiano)
-
-Richiesta utente: ${prompt}`;
+    history.forEach(h => {
+        if (h.role === 'user' || h.role === 'model') {
+             requestContents.push({ role: h.role, parts: h.parts });
+        }
+    });
+    requestContents.push({ role: "user", parts: [{ text: prompt }] });
+    
+    console.log("AI Assistant: Invio richiesta a Gemini API. Prompt:", prompt);
+    // console.log("AI Assistant: Request Contents to Gemini:", JSON.stringify(requestContents, null, 2));
 
     try {
-        let retries = 3;
-        let delay = 1000;
-        let lastError = null;
-        
-        while (retries > 0) {
-            try {
-                const response = await fetch(geminiAPI.endpoint, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'x-goog-api-key': geminiAPI.apiKey
-                    },
-                    body: JSON.stringify({
-                        contents: [{
-                            parts: [{
-                                text: systemPrompt
-                            }]
-                        }],
-                        generationConfig: {
-                            temperature: geminiAPI.temperature,
-                            maxOutputTokens: geminiAPI.maxOutputTokens,
-                            topP: 0.9,
-                            topK: 40
-                        },
-                        safetySettings: [
-                            {
-                                category: "HARM_CATEGORY_HARASSMENT",
-                                threshold: "BLOCK_MEDIUM_AND_ABOVE"
-                            },
-                            {
-                                category: "HARM_CATEGORY_HATE_SPEECH",
-                                threshold: "BLOCK_MEDIUM_AND_ABOVE"
-                            }
-                        ]
-                    })
-                });
+        const response = await fetch(geminiAPI.endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-goog-api-key': geminiAPI.apiKey },
+            body: JSON.stringify({
+                contents: requestContents,
+                tools: tools,
+                systemInstruction: { parts: [{ text: systemPrompt }]},
+                generationConfig: {
+                    temperature: geminiAPI.temperature,
+                    maxOutputTokens: geminiAPI.maxOutputTokens,
+                    topP: 0.9,
+                },
+                 safetySettings: [
+                    { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+                    { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+                    { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+                    { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" }
+                ]
+            })
+        });
 
-                if (!response.ok) {
-                    throw new Error(`Errore API Gemini: ${response.status}`);
-                }
+        if (!response.ok) {
+            const errorBody = await response.text();
+            console.error("AI Assistant: Errore API Gemini:", response.status, errorBody);
+            throw new Error(`Errore API Gemini: ${response.status} - ${errorBody}`);
+        }
 
-                const data = await response.json();
-                
-                if (data.candidates && data.candidates[0] && data.candidates[0].content) {
-                    const aiResponse = data.candidates[0].content.parts[0].text;
-                    
-                    // Analizza se l'AI ha richiesto l'esecuzione di funzioni
-                    const actionResult = await executeAIActions(aiResponse, prompt);
-                    
-                    return actionResult.response || aiResponse;
-                } else {
-                    throw new Error("Risposta API non valida");
-                }
-            } catch (error) {
-                lastError = error;
-                retries--;
-                if (retries > 0) {
-                    await new Promise(r => setTimeout(r, delay));
-                    delay *= 2;
-                }
-            }
+        const data = await response.json();
+        // console.log("AI Assistant: Risposta da Gemini:", JSON.stringify(data, null, 2));
+
+        if (!data.candidates || !data.candidates[0] || !data.candidates[0].content || !data.candidates[0].content.parts) {
+            console.error("AI Assistant: Risposta API Gemini non valida o vuota:", data);
+            throw new Error("Risposta API Gemini non valida o vuota.");
         }
         
-        throw lastError || new Error("Errore sconosciuto nella chiamata API");
+        const responsePart = data.candidates[0].content.parts[0];
+
+        if (responsePart.functionCall) {
+            const functionCall = responsePart.functionCall;
+            const functionName = functionCall.name;
+            const functionArgs = functionCall.args || {};
+
+            console.log(`AI Assistant: Richiesta function call: ${functionName} con argomenti:`, functionArgs);
+
+            if (availableFunctions[functionName]) {
+                try {
+                    const functionResult = await availableFunctions[functionName](functionArgs);
+                    console.log(`AI Assistant: Funzione ${functionName} eseguita. Risultato:`, functionResult);
+
+                    let newHistory = [...requestContents]; 
+                    newHistory.push({ role: "model", parts: [responsePart] }); 
+                    newHistory.push({
+                        role: "user", 
+                        parts: [{
+                            functionResponse: {
+                                name: functionName,
+                                response: { 
+                                    content: functionResult !== undefined && functionResult !== null ? functionResult : { message: "Operazione completata senza output specifico." },
+                                }
+                            }
+                        }]
+                    });
+                    return await callGeminiAIWithSystemAccess("", newHistory); 
+                } catch (error) {
+                    console.error(`AI Assistant: Errore durante l'esecuzione della funzione ${functionName}:`, error);
+                    let newHistory = [...requestContents];
+                    newHistory.push({ role: "model", parts: [responsePart] });
+                    newHistory.push({
+                        role: "user",
+                        parts: [{
+                            functionResponse: {
+                                name: functionName,
+                                response: { error: `Errore nell'eseguire ${functionName}: ${error.message}` }
+                            }
+                        }]
+                    });
+                    return await callGeminiAIWithSystemAccess("", newHistory);
+                }
+            } else {
+                console.error(`AI Assistant: Funzione ${functionName} richiesta dall'AI ma non trovata.`);
+                let newHistory = [...requestContents];
+                newHistory.push({ role: "model", parts: [responsePart] });
+                newHistory.push({
+                    role: "user",
+                    parts: [{
+                        functionResponse: {
+                            name: functionName,
+                            response: { error: `La funzione ${functionName} non esiste.` }
+                        }
+                    }]
+                });
+                return await callGeminiAIWithSystemAccess("", newHistory);
+            }
+        } else if (responsePart.text) {
+            console.log("AI Assistant: Ricevuta risposta testuale da Gemini:", responsePart.text);
+            return responsePart.text;
+        } else {
+            console.error("AI Assistant: Parte di risposta API Gemini non contiene né testo né functionCall:", responsePart);
+            throw new Error("Risposta API Gemini in formato imprevisto.");
+        }
+
     } catch (error) {
-        console.error("Errore chiamata Gemini API:", error);
-        throw error;
+        console.error("AI Assistant: Errore chiamata Gemini API o elaborazione:", error);
+        return `Mi dispiace, si è verificato un errore tecnico (${error.message}). Riprova più tardi.`;
     }
 }
 
 // Prepara il contesto completo del sistema per l'AI
 async function prepareSystemContext() {
     const context = {
-        currentUser: availableFunctions.getCurrentUser(),
-        availableSlotsCount: 0,
+        currentUser: availableFunctions.getCurrentUser(), // Sincrono
+        availableSlotsCount: 0, 
         totalBookings: prenotazioniData.length,
-        todaysBookings: 0,
-        recentSlots: []
+        todaysBookings: 0, 
     };
     
     try {
-        const availableSlots = await availableFunctions.getAvailableSlots();
-        context.availableSlotsCount = availableSlots.length;
-        context.recentSlots = availableSlots.slice(0, 5);
+        // Chiamata asincrona per ottenere gli slot disponibili, usando la funzione interna
+        const availableSlotsResult = await availableFunctions.getAvailableSlots({}); // Passa oggetto vuoto per default
+        context.availableSlotsCount = Array.isArray(availableSlotsResult) ? availableSlotsResult.length : 0;
         
         const today = new Date().toISOString().split('T')[0];
         context.todaysBookings = prenotazioniData.filter(b => b.date === today).length;
     } catch (error) {
-        console.error("Errore nel preparare il contesto:", error);
+        console.error("AI Assistant: Errore nel preparare il contesto dinamico (availableSlots):", error);
     }
-    
     return context;
 }
 
-// Analizza la risposta dell'AI e esegue le azioni richieste
-async function executeAIActions(aiResponse, originalPrompt) {
-    const lowerPrompt = originalPrompt.toLowerCase();
-    const lowerResponse = aiResponse.toLowerCase();
-    
-    let executedActions = [];
-    let finalResponse = aiResponse;
-    
-    try {
-        // Analisi per prenotazioni
-        if (lowerPrompt.includes('prenota') || lowerPrompt.includes('prenotazione') || 
-            lowerPrompt.includes('appuntamento') || lowerPrompt.includes('libro')) {
-            
-            const bookingAction = await analyzeBookingRequest(originalPrompt);
-            if (bookingAction) {
-                executedActions.push(bookingAction);
-            }
-        }
-        
-        // Analisi per visualizzazione disponibilità
-        if (lowerPrompt.includes('disponibil') || lowerPrompt.includes('orari') || 
-            lowerPrompt.includes('quando') || lowerPrompt.includes('libero')) {
-            
-            const availabilityAction = await analyzeAvailabilityRequest(originalPrompt);
-            if (availabilityAction) {
-                executedActions.push(availabilityAction);
-            }
-        }
-        
-        // Analisi per operazioni admin
-        if (isAdmin && (lowerPrompt.includes('aggiungi') || lowerPrompt.includes('rimuovi') || 
-                       lowerPrompt.includes('cancella') || lowerPrompt.includes('crea'))) {
-            
-            const adminAction = await analyzeAdminRequest(originalPrompt);
-            if (adminAction) {
-                executedActions.push(adminAction);
-            }
-        }
-        
-        // Analisi per visualizzazione prenotazioni
-        if (lowerPrompt.includes('mie prenotazioni') || lowerPrompt.includes('i miei appuntamenti')) {
-            const userBookings = await availableFunctions.getUserBookings();
-            executedActions.push({
-                action: 'getUserBookings',
-                result: userBookings,
-                success: true
-            });
-        }
-        
-        // Se sono state eseguite azioni, aggiorna la risposta
-        if (executedActions.length > 0) {
-            finalResponse = await generateResponseWithActions(aiResponse, executedActions, originalPrompt);
-        }
-        
-    } catch (error) {
-        console.error("Errore nell'esecuzione delle azioni:", error);
-        finalResponse += `\n\n⚠️ Si è verificato un errore nell'esecuzione: ${error.message}`;
-    }
-    
-    return {
-        response: finalResponse,
-        actions: executedActions
-    };
-}
-
-// Analizza richieste di prenotazione
-async function analyzeBookingRequest(prompt) {
-    // Pattern per estrarre informazioni di prenotazione
-    const dateMatch = prompt.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})|(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
-    const timeMatch = prompt.match(/(\d{1,2}):(\d{2})/);
-    const nameMatch = prompt.match(/nome\s*[:=]?\s*([a-zA-Z\s]+)/i);
-    const emailMatch = prompt.match(/email\s*[:=]?\s*([^\s@]+@[^\s@]+\.[^\s@]+)/i);
-    
-    // Se non ci sono dettagli sufficienti, restituisci le disponibilità
-    if (!dateMatch && !timeMatch) {
-        const availableSlots = await availableFunctions.getAvailableSlots();
-        return {
-            action: 'getAvailableSlots',
-            result: availableSlots,
-            success: true
-        };
-    }
-    
-    return null; // Richiede più informazioni
-}
-
-// Analizza richieste di disponibilità
-async function analyzeAvailabilityRequest(prompt) {
-    const dateMatch = prompt.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})|(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
-    
-    let targetDate = null;
-    if (dateMatch) {
-        // Converti la data nel formato corretto
-        if (dateMatch[1]) {
-            // Formato gg/mm/aaaa
-            targetDate = `${dateMatch[3]}-${dateMatch[2].padStart(2, '0')}-${dateMatch[1].padStart(2, '0')}`;
-        } else {
-            // Formato aaaa/mm/gg
-            targetDate = `${dateMatch[4]}-${dateMatch[5].padStart(2, '0')}-${dateMatch[6].padStart(2, '0')}`;
-        }
-    }
-    
-    const availableSlots = await availableFunctions.getAvailableSlots(targetDate);
-    return {
-        action: 'getAvailableSlots',
-        result: availableSlots,
-        success: true,
-        date: targetDate
-    };
-}
-
-// Analizza richieste admin
-async function analyzeAdminRequest(prompt) {
-    const lowerPrompt = prompt.toLowerCase();
-    
-    // Aggiunta disponibilità
-    if (lowerPrompt.includes('aggiungi disp')) {
-        const match = prompt.match(/(\d{4}[-\/]\d{2}[-\/]\d{2}).*?(\d{2}:\d{2}).*?(\d{2}:\d{2})/);
-        if (match) {
-            const [, date, startTime, endTime] = match;
-            const normalizedDate = date.replace(/\//g, '-');
-            const description = prompt.match(/descrizione[:\s]*([^.!?]+)/i)?.[1]?.trim() || '';
-            
-            const result = await availableFunctions.addAvailability(normalizedDate, startTime, endTime, description);
-            return {
-                action: 'addAvailability',
-                result: result,
-                success: true,
-                params: { date: normalizedDate, startTime, endTime, description }
-            };
-        }
-    }
-    
-    // Rimozione disponibilità
-    if (lowerPrompt.includes('rimuovi disp') || lowerPrompt.includes('cancella disp')) {
-        const match = prompt.match(/(\d{4}[-\/]\d{2}[-\/]\d{2}).*?(\d{2}:\d{2})/);
-        if (match) {
-            const [, date, startTime] = match;
-            const normalizedDate = date.replace(/\//g, '-');
-            
-            const result = await availableFunctions.removeAvailability(normalizedDate, startTime);
-            return {
-                action: 'removeAvailability',
-                result: result,
-                success: true,
-                params: { date: normalizedDate, startTime }
-            };
-        }
-    }
-    
-    return null;
-}
-
-// Genera una risposta aggiornata con i risultati delle azioni
-async function generateResponseWithActions(originalResponse, actions, originalPrompt) {
-    let enhancedResponse = originalResponse;
-    
-    for (const action of actions) {
-        switch (action.action) {
-            case 'getAvailableSlots':
-                if (action.result.length > 0) {
-                    enhancedResponse += `\n\n📅 **Disponibilità trovate:**\n`;
-                    action.result.forEach(slot => {
-                        enhancedResponse += `• ${slot.date} dalle ${slot.startTime} alle ${slot.endTime}`;
-                        if (slot.description) enhancedResponse += ` - ${slot.description}`;
-                        enhancedResponse += '\n';
-                    });
-                } else {
-                    enhancedResponse += '\n\n❌ Nessuna disponibilità trovata per il periodo richiesto.';
-                }
-                break;
-                
-            case 'getUserBookings':
-                if (action.result.length > 0) {
-                    enhancedResponse += `\n\n📋 **Le tue prenotazioni:**\n`;
-                    action.result.forEach(booking => {
-                        enhancedResponse += `• ${booking.date} dalle ${booking.startTime} alle ${booking.endTime} - ${booking.name}\n`;
-                    });
-                } else {
-                    enhancedResponse += '\n\n📭 Non hai prenotazioni attive al momento.';
-                }
-                break;
-                
-            case 'addAvailability':
-                enhancedResponse += `\n\n✅ **Disponibilità aggiunta:** ${action.params.date} dalle ${action.params.startTime} alle ${action.params.endTime}`;
-                break;
-                
-            case 'removeAvailability':
-                enhancedResponse += `\n\n🗑️ **Disponibilità rimossa:** ${action.params.date} alle ${action.params.startTime}`;
-                break;
-                
-            case 'createBooking':
-                enhancedResponse += `\n\n🎉 **Prenotazione confermata!** ID: ${action.result.bookingId}`;
-                break;
-        }
-    }
-    
-    return enhancedResponse;
-}
-
-// Verifica se Firebase è caricato e inizializza l'assistente
-document.addEventListener('DOMContentLoaded', () => {
-    console.log("AI Assistant: DOMContentLoaded event fired."); // LOG
-    // Inizializza Gemini AI
-    initializeGeminiAPI();
-    
-    // Variabili globali per l'assistente
-    let chatbox;
-    let assistantButton;
-    let closeButton;
-    let messagesContainer;
-    let inputField;
-    let sendButton;
-    let suggestionsContainer;
-    let confirmationCallback = null;
-    let typingIndicator;
-
-    // Inizializza Firebase (se non già fatto)
-    if (typeof firebase !== 'undefined' && !firebase.apps.length) {
-        firebase.initializeApp(firebaseConfig);
-    }
-
-    // Funzione per creare l'HTML dell'assistente e aggiungerlo al body
-    function createAssistantUI() {
-        console.log("AI Assistant: Attempting to create UI..."); // LOG
-        
-        // Rimuovi eventuali istanze esistenti
-        const existingContainer = document.querySelector('.ai-assistant-container');
-        if (existingContainer) {
-            existingContainer.remove();
-        }
-        
-        // Crea il contenitore HTML per l'assistente AI
-        const assistantHTML = `
-            <div class="ai-assistant-container">
-                <div class="ai-assistant-button">
-                    🤖
-                </div>
-                <div class="ai-assistant-chatbox">
-                    <div class="ai-assistant-header">
-                        <div class="ai-assistant-header-title">
-                            <div class="ai-assistant-header-logo">🤖</div>
-                            <span>Miller AI</span>
-                        </div>
-                        <button class="ai-assistant-close">&times;</button>
-                    </div>
-                    <div class="ai-assistant-messages"></div>
-                    <div class="ai-assistant-suggestions"></div>
-                    <div class="ai-assistant-input-container">
-                        <input type="text" class="ai-assistant-input" placeholder="Scrivi un messaggio...">
-                        <button class="ai-assistant-send">
-                            <div class="ai-assistant-send-icon"></div>
-                        </button>
-                    </div>
-                </div>
-            </div>
-        `;
-
-        // Aggiunge l'HTML al body
-        document.body.insertAdjacentHTML('beforeend', assistantHTML);
-        console.log("AI Assistant: UI HTML injected."); // LOG
-
-        // Ottiene i riferimenti agli elementi dopo averli aggiunti
-        chatbox = document.querySelector('.ai-assistant-chatbox');
-        assistantButton = document.querySelector('.ai-assistant-button');
-        closeButton = document.querySelector('.ai-assistant-close');
-        messagesContainer = document.querySelector('.ai-assistant-messages');
-        inputField = document.querySelector('.ai-assistant-input');
-        sendButton = document.querySelector('.ai-assistant-send');
-        suggestionsContainer = document.querySelector('.ai-assistant-suggestions');
-
-        // Verifica che tutti gli elementi siano stati creati
-        if (!chatbox || !assistantButton || !closeButton || !messagesContainer || !inputField || !sendButton) {
-            console.error("AI Assistant: Critical UI elements not found after injection.");
-            return; 
-        }
-        console.log("AI Assistant: UI elements successfully referenced.");
-
-        // Aggiunge gli event listener
-        assistantButton.addEventListener('click', toggleChatbox);
-        closeButton.addEventListener('click', toggleChatbox);
-        sendButton.addEventListener('click', sendMessage);
-        
-        inputField.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                sendMessage();
-            }
-        });
-
-        // Event listener per i suggerimenti clickabili
-        if (suggestionsContainer) {
-            suggestionsContainer.addEventListener('click', (e) => {
-                if (e.target.classList.contains('ai-assistant-suggestion')) {
-                    const suggestionText = e.target.textContent;
-                    inputField.value = suggestionText;
-                    sendMessage();
-                }
-            });
-        }
-
-        // Inizializza l'assistente (autenticazione, messaggi, ecc.)
-        initializeAssistantWithFirebase();
-    }
-
-    // Funzione per mostrare/nascondere la chatbox
-    function toggleChatbox() {
-        console.log("AI Assistant: toggleChatbox called."); // LOG
-        if (!chatbox || !assistantButton) {
-            console.error("AI Assistant: Chatbox or AssistantButton not initialized. Cannot toggle.");
-            return;
-        }
-        
-        const isActive = chatbox.classList.contains('active');
-        
-        if (isActive) {
-            // Chiudi
-            chatbox.classList.remove('active');
-            assistantButton.classList.remove('active');
-            assistantButton.style.display = 'flex';
-        } else {
-            // Apri
-            chatbox.classList.add('active');
-            assistantButton.classList.add('active');
-            
-            // Se apriamo la chat e non ci sono messaggi, mostra il benvenuto
-            if (messagesContainer && messagesContainer.children.length === 0) {
-                updateChatContext();
-            }
-        }
-        
-        console.log(`AI Assistant: Chatbox active: ${!isActive}, Button hidden: ${!isActive}`); // LOG
-    }
-
-    // --- Inizio Esecuzione --- 
-    // Crea l'interfaccia dell'assistente quando il DOM è pronto
-    createAssistantUI(); 
-
-    // Tentativo di inizializzazione ritardato nel caso l'evento non arrivi
-    setTimeout(() => {
-        if (!firebaseReady) {
-            console.warn("Timeout attesa Firebase. L'assistente AI potrebbe funzionare in modalità limitata.");
-            // Potresti decidere di inizializzare comunque senza Firebase o mostrare un messaggio
-            if (window.firebaseWrapper && !window.firebaseWrapper.isInitialized) {
-                 try {
-                    window.firebaseWrapper.initializeFirebase(); // Forza inizializzazione
-                    if (window.firebaseWrapper.isInitialized) {
-                        firebaseReady = true;
-                        initializeAssistantWithFirebase();
-                    }
-                 } catch (e) {
-                    console.error("Errore forzando inizializzazione Firebase:", e);
-                 }
-            }
-        }
-    }, 5000); // Attendi 5 secondi
-});
-
-// Funzione separata per inizializzare le funzionalità dipendenti da Firebase
-function initializeAssistantWithFirebase() {
-    if (!firebaseReady) {
-        console.warn("AI Assistant: Firebase not ready, skipping Firebase-dependent initialization."); // LOG
-        return;
-    }
-
-    console.log("Firebase pronto. Inizializzazione completa dell'assistente AI.");
-    db = window.firebaseWrapper.getDatabase();
-    auth = window.firebaseWrapper.getAuth();
-
-    // Controllo stato autenticazione e ruolo admin
-    window.firebaseWrapper.onAuthStateChanged(async (user) => {
-        currentUser = user;
-        if (user) {
-            console.log("Utente autenticato:", user.email);
-            await checkUserRole(user.uid); // Controlla il ruolo dal DB
-            console.log("Ruolo Admin:", isAdmin);
-        } else {
-            console.log("Nessun utente autenticato.");
-            currentUser = null;
-            isAdmin = false;
-        }
-        // Aggiorna suggerimenti e messaggio di benvenuto se la chat è aperta
-        updateChatContext();
-    });
-
-    // Carica i dati iniziali
-    loadDatabaseData();
-}
-
-// Funzione per verificare il ruolo dell'utente dal database
-async function checkUserRole(uid) {
-    if (!firebaseReady || !db) {
-        isAdmin = false;
-        return;
-    }
-    try {
-        const userRef = window.firebaseWrapper.ref(`users/${uid}/role`);
-        const snapshot = await window.firebaseWrapper.get(userRef); // Usa get() per leggere una volta
-        if (snapshot.exists() && snapshot.val() === 'admin') {
-            isAdmin = true;
-        } else {
-            isAdmin = false;
-        }
-    } catch (error) {
-        console.error("Errore nel controllo del ruolo admin:", error);
-        isAdmin = false;
-    }
-}
-
-// Funzione per caricare dati dal database
-function loadDatabaseData() {
-    if (!firebaseReady || !db) return;
-
-    // Carica le disponibilità (organizzate per data)
-    const dispRef = window.firebaseWrapper.ref('disponibilita');
-    window.firebaseWrapper.onValue(dispRef, (snapshot) => {
-        disponibilitaData = snapshot.val() || {}; // Salva l'intero oggetto delle disponibilità
-        console.log("Dati disponibilità caricati/aggiornati.");
-        // Potresti voler aggiornare la chat se è aperta e si stava parlando di disponibilità
-    }, (error) => {
-        console.error("Errore caricamento disponibilità:", error);
-        // Gestisci l'errore, magari mostrando un messaggio all'utente
-    });
-
-    // Carica le prenotazioni
-    const prenotazioniRef = window.firebaseWrapper.ref('prenotazioni');
-    window.firebaseWrapper.onValue(prenotazioniRef, (snapshot) => {
-        prenotazioniData = [];
-        if (snapshot.exists()) {
-            snapshot.forEach((childSnapshot) => {
-                const item = childSnapshot.val();
-                item.id = childSnapshot.key; // Aggiungi l'ID della prenotazione
-                prenotazioniData.push(item);
-            });
-        }
-        console.log("Dati prenotazioni caricati/aggiornati:", prenotazioniData.length);
-        // Potresti voler aggiornare la chat se è aperta e si stava parlando di prenotazioni
-    }, (error) => {
-        console.error("Errore caricamento prenotazioni:", error);
-        // Gestisci l'errore
-    });
-}
-
-// Aggiorna il messaggio di benvenuto e i suggerimenti
-function updateChatContext() {
-    const chatbox = document.querySelector('.ai-assistant-chatbox');
-    const messagesContainer = document.querySelector('.ai-assistant-messages');
-    const suggestionsContainer = document.querySelector('.ai-assistant-suggestions');
-
-    if (!chatbox || !chatbox.classList.contains('active')) return;
-
-    if (messagesContainer.childElementCount === 0) {
-        showBotMessage(getBotWelcomeMessage());
-    }
-    showSuggestions(getInitialSuggestions());
-}
-
+// (Le funzioni UI e di gestione dei messaggi come sendMessage, showUserMessage, showBotMessage, ecc. rimangono)
 // Modifica sendMessage per usare solo Gemini AI
 function sendMessage() {
     console.log("AI Assistant: sendMessage called.");
@@ -827,135 +562,342 @@ function sendMessage() {
 
     showUserMessage(message);
     input.value = '';
-    suggestionsContainer.innerHTML = '';
+    if (suggestionsContainer) suggestionsContainer.innerHTML = '';
     showTypingIndicator();
-
-    // Usa sempre Gemini AI per tutte le richieste
-    setTimeout(async () => {
+    
+    (async () => {
         try {
             if (!isGeminiReady) {
+                console.error("AI Assistant: sendMessage - Gemini AI non pronto.");
                 throw new Error("Gemini AI non configurato correttamente");
             }
             
-            const response = await callGeminiAIWithSystemAccess(message);
+            const response = await callGeminiAIWithSystemAccess(message, []); 
             removeTypingIndicator();
-            showBotMessage(response);
+            showBotMessage(response); 
 
-            // Suggerimenti intelligenti basati sul contesto
-            const contextualSuggestions = generateContextualSuggestions(message, response);
-            if (contextualSuggestions.length > 0) {
-                showSuggestions(contextualSuggestions);
-            }
+            // const contextualSuggestions = generateContextualSuggestions(message, response);
+            // if (contextualSuggestions.length > 0) {
+            //     showSuggestions(contextualSuggestions);
+            // }
         } catch (error) {
             removeTypingIndicator();
-            console.error("Errore nell'elaborazione del messaggio:", error);
+            console.error("AI Assistant: sendMessage - Errore nell'elaborazione del messaggio con Gemini:", error);
             showBotMessage(`❌ Mi dispiace, si è verificato un errore: ${error.message}\n\nPuoi riprovare o riformulare la tua richiesta.`);
-            showSuggestions(["Riprova", "Mostra disponibilità", "Le mie prenotazioni", "Aiuto"]);
+            // showSuggestions(["Riprova", "Mostra disponibilità", "Le mie prenotazioni", "Aiuto"]);
         }
-    }, 1000 + Math.random() * 1000);
+    })();
 }
 
-// Genera suggerimenti contestuali intelligenti
+// QUESTA FUNZIONE POTREBBE AVER BISOGNO DI REVISIONE O ESSERE RIMOSSA/SEMPLIFICATA
 function generateContextualSuggestions(lastMessage, botResponse) {
+    // ... (implementazione invariata per ora)
     const lowerMessage = lastMessage.toLowerCase();
-    const lowerResponse = botResponse.toLowerCase();
+    const lowerResponse = botResponse ? botResponse.toLowerCase() : "";
     
     let suggestions = [];
     
     if (lowerResponse.includes('disponibilità trovate') || lowerResponse.includes('📅')) {
-        suggestions = [
-            "Prenota il primo slot disponibile",
-            "Mostra solo il weekend",
-            "Disponibilità della prossima settimana",
-            "Filtra per orario pomeridiano"
-        ];
+        suggestions = [ "Prenota il primo slot disponibile", "Mostra solo il weekend", "Disponibilità della prossima settimana", "Filtra per orario pomeridiano" ];
     } else if (lowerResponse.includes('prenotazione confermata') || lowerResponse.includes('🎉')) {
-        suggestions = [
-            "Mostra dettagli prenotazione",
-            "Le mie altre prenotazioni",
-            "Come arrivo in sede?",
-            "Grazie!"
-        ];
+        suggestions = [ "Mostra dettagli prenotazione", "Le mie altre prenotazioni", "Come arrivo in sede?", "Grazie!" ];
     } else if (lowerMessage.includes('prenota') && !lowerResponse.includes('confermata')) {
-        suggestions = [
-            "Prenota per domani mattina",
-            "Prenota per questo weekend",
-            "Vedi tutti gli orari disponibili",
-            "Preferisco il pomeriggio"
-        ];
+        suggestions = [ "Prenota per domani mattina", "Prenota per questo weekend", "Vedi tutti gli orari disponibili", "Preferisco il pomeriggio" ];
     } else if (isAdmin) {
-        suggestions = [
-            "Aggiungi disponibilità per domani",
-            "Mostra prenotazioni di oggi",
-            "Statistiche del mese",
-            "Gestisci slot della settimana"
-        ];
+        suggestions = [ "Aggiungi disponibilità per domani", "Mostra prenotazioni di oggi", "Statistiche del mese", "Gestisci slot della settimana" ];
     } else {
-        suggestions = [
-            "Mostra disponibilità",
-            "Le mie prenotazioni",
-            "Info sui servizi",
-            "Come prenoto?"
-        ];
+        suggestions = [ "Mostra disponibilità", "Le mie prenotazioni", "Info sui servizi", "Come prenoto?" ];
     }
     
+    suggestions = suggestions.filter(sugg => !lowerMessage.includes(sugg.toLowerCase()) && !lowerResponse.includes(sugg.toLowerCase()));
     return suggestions.slice(0, 4);
 }
 
-// Messaggio di benvenuto sempre dinamico
+document.addEventListener('DOMContentLoaded', () => {
+    console.log("AI Assistant: DOMContentLoaded event fired."); 
+    initializeGeminiAPI();
+    
+    let chatbox, assistantButton, closeButton, messagesContainer, inputField, sendButton, suggestionsContainer;
+    let confirmationCallback = null; // Non più usato con function calling?
+    let typingIndicator;
+
+    function createAssistantUI() {
+        console.log("AI Assistant: Attempting to create UI..."); 
+        const existingContainer = document.querySelector('.ai-assistant-container');
+        if (existingContainer) existingContainer.remove();
+        
+        const assistantHTML = `
+            <div class="ai-assistant-container"> <div class="ai-assistant-button">🤖</div>
+                <div class="ai-assistant-chatbox">
+                    <div class="ai-assistant-header">
+                        <div class="ai-assistant-header-title"><div class="ai-assistant-header-logo">🤖</div><span>Miller AI</span></div>
+                        <button class="ai-assistant-close">&times;</button>
+                    </div>
+                    <div class="ai-assistant-messages"></div> <div class="ai-assistant-suggestions"></div>
+                    <div class="ai-assistant-input-container">
+                        <input type="text" class="ai-assistant-input" placeholder="Scrivi un messaggio...">
+                        <button class="ai-assistant-send"><div class="ai-assistant-send-icon"></div></button>
+                    </div>
+                </div> </div>`;
+        document.body.insertAdjacentHTML('beforeend', assistantHTML);
+        console.log("AI Assistant: UI HTML injected."); 
+
+        chatbox = document.querySelector('.ai-assistant-chatbox');
+        assistantButton = document.querySelector('.ai-assistant-button');
+        closeButton = document.querySelector('.ai-assistant-close');
+        messagesContainer = document.querySelector('.ai-assistant-messages');
+        inputField = document.querySelector('.ai-assistant-input');
+        sendButton = document.querySelector('.ai-assistant-send');
+        suggestionsContainer = document.querySelector('.ai-assistant-suggestions');
+        typingIndicator = document.createElement('div'); // Creato ma non aggiunto/usato attivamente qui
+        typingIndicator.className = 'ai-assistant-typing-indicator';
+        typingIndicator.innerHTML = '<span></span><span></span><span></span>';
+
+
+        if (!chatbox || !assistantButton || !closeButton || !messagesContainer || !inputField || !sendButton) {
+            console.error("AI Assistant: Critical UI elements not found after injection.");
+            return; 
+        }
+        console.log("AI Assistant: UI elements successfully referenced.");
+
+        assistantButton.addEventListener('click', toggleChatbox);
+        closeButton.addEventListener('click', toggleChatbox);
+        sendButton.addEventListener('click', sendMessage);
+        inputField.addEventListener('keypress', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } });
+        if (suggestionsContainer) {
+            suggestionsContainer.addEventListener('click', (e) => {
+                if (e.target.classList.contains('ai-assistant-suggestion')) {
+                    inputField.value = e.target.textContent; sendMessage();
+                }
+            });
+        }
+
+        if (window.firebaseWrapper && window.firebaseWrapper.isInitialized) {
+            console.log("AI Assistant: Firebase già pronto durante createUI.");
+            firebaseReady = true;
+            initializeAssistantWithFirebase();
+        } else {
+            console.log("AI Assistant: Firebase non pronto durante createUI, in ascolto di firebase-ready.");
+            document.addEventListener('firebase-ready', () => {
+                console.log("AI Assistant: firebase-ready event ricevuto in createUI.");
+                firebaseReady = true;
+                initializeAssistantWithFirebase();
+            }, { once: true });
+        }
+    }
+
+    function toggleChatbox() {
+        console.log("AI Assistant: toggleChatbox called."); 
+        if (!chatbox || !assistantButton) {
+            console.error("AI Assistant: Chatbox or AssistantButton not initialized. Cannot toggle."); return;
+        }
+        const isActive = chatbox.classList.toggle('active');
+        assistantButton.classList.toggle('active', isActive);
+        assistantButton.style.display = isActive ? 'none' : 'flex'; // Nasconde il pulsante quando la chat è attiva
+        if (isActive && messagesContainer && messagesContainer.children.length === 0) {
+            updateChatContext();
+        }
+        console.log(`AI Assistant: Chatbox active: ${isActive}`);
+    }
+    createAssistantUI(); 
+});
+
+function initializeAssistantWithFirebase() {
+    if (!firebaseReady || !window.firebaseWrapper || !window.firebaseWrapper.isInitialized) {
+        console.warn("AI Assistant: initializeAssistantWithFirebase - Firebase non pronto o wrapper non inizializzato."); 
+        if (window.firebaseWrapper && !window.firebaseWrapper.isInitialized) {
+            console.log("AI Assistant: initializeAssistantWithFirebase - Tentativo di inizializzazione Firebase via wrapper.");
+            window.firebaseWrapper.initializeFirebase(); 
+        }
+        if (!window.firebaseWrapper || !window.firebaseWrapper.isInitialized) {
+             console.log("AI Assistant: initializeAssistantWithFirebase - Ancora non pronto, attendo evento firebase-ready.");
+             if (!document.querySelector('.ai-assistant-container')) { 
+                document.addEventListener('firebase-ready', () => {
+                    console.log("AI Assistant: firebase-ready event (deferred check).");
+                    firebaseReady = true; initializeAssistantWithFirebase();
+                }, { once: true }); 
+             }
+             return;
+        }
+        firebaseReady = true; 
+    }
+
+    console.log("AI Assistant: Firebase pronto. Inizializzazione completa dell'assistente AI.");
+    db = window.firebaseWrapper.getDatabase(); 
+    if (!window.firebaseWrapper.auth) {
+        console.error("AI Assistant: Firebase Auth object non disponibile su firebaseWrapper."); return;
+    }
+    auth = window.firebaseWrapper.auth;
+
+    auth.onAuthStateChanged(async (user) => {
+        currentUser = user;
+        if (user) {
+            console.log("AI Assistant: Utente autenticato:", user.email);
+            await checkUserRole(user.uid); 
+            console.log("AI Assistant: Ruolo Admin:", isAdmin);
+        } else {
+            console.log("AI Assistant: Nessun utente autenticato.");
+            currentUser = null; isAdmin = false;
+        }
+        updateChatContext();
+    });
+    loadDatabaseData();
+}
+
+async function checkUserRole(uid) {
+    console.log(`AI Assistant: checkUserRole per UID: ${uid}`);
+    if (!firebaseReady || !db || !window.firebaseWrapper.isInitialized) {
+        console.warn("AI Assistant: checkUserRole - Firebase non pronto.");
+        isAdmin = false; return;
+    }
+    const userRolePath = `users/${uid}/role`;
+    try {
+        const snapshot = await window.firebaseWrapper.get(window.firebaseWrapper.ref(userRolePath)); 
+        if (snapshot.exists() && snapshot.val() === 'admin') {
+            console.log("AI Assistant: checkUserRole - Utente è admin.");
+            isAdmin = true;
+        } else {
+            console.log("AI Assistant: checkUserRole - Utente non è admin o ruolo non specificato.");
+            isAdmin = false;
+        }
+    } catch (error) {
+        console.error(`AI Assistant: checkUserRole - Errore nel controllo del ruolo admin da ${userRolePath}:`, error);
+        isAdmin = false;
+    }
+}
+
+function loadDatabaseData() {
+    console.log("AI Assistant: loadDatabaseData chiamato.");
+    if (!firebaseReady || !db || !window.firebaseWrapper.isInitialized) {
+        console.warn("AI Assistant: loadDatabaseData - Firebase non pronto. Caricamento dati saltato.");
+        return;
+    }
+
+    const dispPath = 'disponibilita';
+    console.log(`AI Assistant: Inizio ascolto su ${dispPath}`);
+    window.firebaseWrapper.onValue(window.firebaseWrapper.ref(dispPath), (snapshot) => {
+        disponibilitaData = snapshot.val() || {}; 
+        console.log("AI Assistant: Dati disponibilità caricati/aggiornati. Numero di date:", Object.keys(disponibilitaData).length);
+    }, (error) => {
+        console.error(`AI Assistant: Errore Firebase caricamento disponibilità da ${dispPath}:`, error);
+    });
+
+    const prenotazioniPath = 'prenotazioni';
+    console.log(`AI Assistant: Inizio ascolto su ${prenotazioniPath}`);
+    window.firebaseWrapper.onValue(window.firebaseWrapper.ref(prenotazioniPath), (snapshot) => {
+        prenotazioniData = [];
+        if (snapshot.exists()) {
+            snapshot.forEach((childSnapshot) => {
+                const item = childSnapshot.val();
+                item.id = childSnapshot.key; 
+                prenotazioniData.push(item);
+            });
+        }
+        console.log("AI Assistant: Dati prenotazioni caricati/aggiornati. Numero prenotazioni:", prenotazioniData.length);
+    }, (error) => {
+        console.error(`AI Assistant: Errore Firebase caricamento prenotazioni da ${prenotazioniPath}:`, error);
+    });
+}
+
+function updateChatContext() {
+    const chatbox = document.querySelector('.ai-assistant-chatbox');
+    const messagesContainer = document.querySelector('.ai-assistant-messages');
+    // const suggestionsContainer = document.querySelector('.ai-assistant-suggestions'); // Già definito in createAssistantUI
+
+    if (!chatbox || !chatbox.classList.contains('active')) return;
+    if (messagesContainer && messagesContainer.childElementCount === 0) { // Solo se non ci sono messaggi
+        showBotMessage(getBotWelcomeMessage());
+    }
+    // showSuggestions(getInitialSuggestions()); // I suggerimenti iniziali potrebbero essere gestiti dall'AI
+}
+
 function getBotWelcomeMessage() {
     const ora = new Date().getHours();
     let saluto = ora < 12 ? "Buongiorno" : ora < 18 ? "Buon pomeriggio" : "Buonasera";
-    
-    if (isAdmin) {
-        return `${saluto}! Sono Miller AI, il tuo assistente amministrativo intelligente. Posso gestire disponibilità, prenotazioni, statistiche e molto altro. Dimmi cosa devo fare per te!`;
-    } else if (currentUser) {
-        return `${saluto} ${currentUser.displayName || currentUser.email}! Sono Miller AI. Posso aiutarti a prenotare, gestire i tuoi appuntamenti o rispondere a qualsiasi domanda sui nostri servizi.`;
-    } else {
-        return `${saluto}! Sono Miller AI, l'assistente intelligente del centro. Posso fornire informazioni, mostrare disponibilità e guidarti nella prenotazione. Come posso aiutarti?`;
+    if (isAdmin) return `${saluto}! Sono Miller AI, il tuo assistente amministrativo. Come posso aiutarti oggi?`;
+    if (currentUser) return `${saluto} ${currentUser.displayName || currentUser.email}! Sono Miller AI. Come posso assisterti?`;
+    return `${saluto}! Sono Miller AI. Chiedimi informazioni o aiuto per prenotare.`;
+}
+
+function getInitialSuggestions() { // Questa funzione potrebbe diventare meno rilevante
+    if (isAdmin) return ["Mostra prenotazioni di oggi", "Aggiungi disponibilità", "Statistiche"];
+    if (currentUser) return ["Le mie prenotazioni", "Mostra disponibilità", "Prenota per domani"];
+    return ["Mostra disponibilità", "Come prenoto?", "Info sui servizi"];
+}
+
+// Funzioni UI (showUserMessage, showBotMessage, showTypingIndicator, ecc.) da definire qui
+// Queste funzioni manipolano .ai-assistant-messages, .ai-assistant-suggestions, ecc.
+// Assicurarsi che siano definite globalmente o passate/accessibili dove necessario.
+
+function showUserMessage(message) {
+    const messagesContainer = document.querySelector('.ai-assistant-messages');
+    if (!messagesContainer) return;
+    const messageElement = document.createElement('div');
+    messageElement.classList.add('ai-assistant-message', 'user');
+    messageElement.textContent = message;
+    messagesContainer.appendChild(messageElement);
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
+
+function showBotMessage(message) {
+    const messagesContainer = document.querySelector('.ai-assistant-messages');
+    if (!messagesContainer) return;
+    const messageElement = document.createElement('div');
+    messageElement.classList.add('ai-assistant-message', 'bot');
+    // Semplice markdown per grassetto e corsivo (da estendere se necessario)
+    message = message.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\*(.*?)\*/g, '<em>$1</em>');
+    messageElement.innerHTML = message; // Usa innerHTML per formattazione
+    messagesContainer.appendChild(messageElement);
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    // speakMessage(messageElement.textContent); // Rimuovi textContent se vuoi che legga il markdown formattato
+}
+
+function showTypingIndicator() {
+    const messagesContainer = document.querySelector('.ai-assistant-messages');
+    const typingIndicator = document.querySelector('.ai-assistant-typing-indicator') || document.createElement('div');
+    if (!document.querySelector('.ai-assistant-typing-indicator')) {
+        typingIndicator.className = 'ai-assistant-typing-indicator ai-assistant-message bot'; // Applica stili messaggio bot
+        typingIndicator.innerHTML = '<span></span><span></span><span></span>';
+        messagesContainer.appendChild(typingIndicator);
+    }
+    typingIndicator.style.display = 'flex'; // Assicurati che sia visibile
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
+
+function removeTypingIndicator() {
+    const typingIndicator = document.querySelector('.ai-assistant-typing-indicator');
+    if (typingIndicator) {
+        typingIndicator.style.display = 'none'; // Nascondi invece di rimuovere per riutilizzarlo
     }
 }
 
-function getInitialSuggestions() {
-    if (isAdmin) {
-        return [
-            "Mostra le prenotazioni di oggi",
-            "Aggiungi disponibilità per domani dalle 9:00 alle 17:00",
-            "Statistiche del centro",
-            "Gestisci prenotazioni della settimana"
-        ];
-    } else if (currentUser) {
-        return [
-            "Mostra le disponibilità di questa settimana",
-            "Le mie prenotazioni attive",
-            "Prenota per domani pomeriggio",
-            "Info sui vostri servizi"
-        ];
+function showSuggestions(suggestionsArray) {
+    const suggestionsContainer = document.querySelector('.ai-assistant-suggestions');
+    if (!suggestionsContainer) return;
+    suggestionsContainer.innerHTML = ''; // Pulisci vecchi suggerimenti
+    if (suggestionsArray && suggestionsArray.length > 0) {
+        suggestionsArray.forEach(suggText => {
+            const button = document.createElement('button');
+            button.className = 'ai-assistant-suggestion';
+            button.textContent = suggText;
+            suggestionsContainer.appendChild(button);
+        });
+        suggestionsContainer.style.display = 'flex'; // Mostra il contenitore
     } else {
-        return [
-            "Mostra le disponibilità",
-            "Come posso prenotare?",
-            "Quali servizi offrite?",
-            "Dove siete ubicati?"
-        ];
+        suggestionsContainer.style.display = 'none'; // Nascondi se non ci sono suggerimenti
     }
 }
 
-// Aggiungi funzione per text-to-speech (lettura vocale dei messaggi)
 function speakMessage(text) {
     if ('speechSynthesis' in window) {
-        const speech = new SpeechSynthesisUtterance();
-        speech.text = text;
+        // Pulisci il testo da Markdown per una lettura più naturale
+        const cleanedText = text.replace(/\*\*(.*?)\*\*/g, '$1').replace(/\*(.*?)\*/g, '$1');
+        const speech = new SpeechSynthesisUtterance(cleanedText);
         speech.lang = 'it-IT';
-        speech.volume = 0.8;
-        speech.rate = 1.0;
-        speech.pitch = 1.0;
-        
-        // Trova una voce italiana se disponibile
+        speech.volume = 0.8; speech.rate = 1.0; speech.pitch = 1.0;
         const voices = speechSynthesis.getVoices();
-        const italianVoice = voices.find(voice => voice.lang.includes('it-IT'));
+        const italianVoice = voices.find(voice => voice.lang.startsWith('it-IT'));
         if (italianVoice) speech.voice = italianVoice;
-        
         window.speechSynthesis.speak(speech);
         return true;
     }

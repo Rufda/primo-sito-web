@@ -63,7 +63,15 @@ table {
 
 /* Per dispositivi molto piccoli (fino a 480px) */
 @media (max-width: 480px) {
-    .box {
+    /* General adjustments for content containers on small screens */
+    .form-container, .card { /* Targets index.html's form and disponibilita.html's cards */
+        padding: 15px;
+        margin-left: auto;
+        margin-right: auto;
+        width: 95%; /* Ensure they don't touch screen edges */
+    }
+
+    .box { /* If .box class is used elsewhere */
         padding: 15px;
         width: 100% !important;
         max-width: 100% !important;
@@ -74,37 +82,39 @@ table {
         font-size: 1.4rem !important;
     }
     
-    .form-section h3 {
-        font-size: 1rem !important;
+    .form-section h3 { /* Specific to disponibilita.html form section */
+        font-size: 1.1rem !important; /* Slightly larger than general h3 if needed */
+    }
+
+    /* Calendar adjustments for very small screens */
+    .calendar-grid .day { /* More specific selector */
+        min-height: 35px !important; /* Slightly more touch-friendly */
+        min-width: 35px !important;
+        font-size: 0.85rem !important; 
     }
     
-    .day {
-        min-height: 30px !important;
-        min-width: 30px !important;
-        font-size: 0.8rem !important;
-    }
-    
-    .day-name {
-        font-size: 0.8rem !important;
+    .calendar-grid .day-name { /* More specific selector */
+        font-size: 0.75rem !important;
+        padding: 4px 0 !important;
     }
     
     .current-month {
+        font-size: 1rem !important; /* Make month display a bit larger */
+        min-width: 120px !important;
+    }
+    
+    .button { /* General button sizing */
+        padding: 10px 15px !important; /* Increase padding for better touch */
         font-size: 0.9rem !important;
-        min-width: 100px !important;
     }
     
-    .button {
-        padding: 8px 12px !important;
-        font-size: 14px !important;
+    /* Table cell padding and font size for very small screens */
+    .table-container table td, .table-container table th { /* More specific selector */
+        padding: 10px 6px !important; /* Increase padding slightly */
+        font-size: 0.85rem !important;
     }
     
-    /* Riduci padding nelle tabelle */
-    table td, table th {
-        padding: 8px 5px !important;
-        font-size: 0.8rem !important;
-    }
-    
-    /* Fix per l'assistente AI */
+    /* AI Assistant adjustments for very small screens */
     .ai-assistant-container {
         width: 90vw !important;
         height: 60vh !important;
@@ -114,20 +124,34 @@ table {
 
 /* Per dispositivi mobili (da 481px a 768px) */
 @media (min-width: 481px) and (max-width: 768px) {
-    .box {
+    /* General adjustments for content containers */
+    .form-container, .card {
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    .box { /* If .box class is used elsewhere */
         width: 90% !important;
-        max-width: 450px !important;
+        max-width: 450px !important; /* .form-container in index.html already has this max-width */
         margin: 15px auto !important;
     }
     
-    /* Layout a colonna singola per il dashboard */
+    /* Layout a colonna singola per il dashboard in disponibilita.html */
+    /* Layout a colonna singola per il dashboard in disponibilita.html */
+    /* This ensures that if .dashboard is a flex container, its items (.card) stack.
+       This rule is general; disponibilita.html's inline CSS already handles this for its specific .dashboard.
+       Adding it here for robustness or if other .dashboard elements exist. */
     .dashboard {
-        grid-template-columns: 1fr !important;
-        gap: 15px !important;
+        flex-direction: column !important; /* Ensure stacking for any .dashboard */
+        gap: 15px !important; /* Consistent gap */
+    }
+    .dashboard .card { /* Ensure cards in a stacked dashboard take full width */
+        width: 100% !important; /* Or auto, depending on parent padding */
+        max-width: 100% !important; /* Override more specific max-widths if needed */
     }
     
-    .container {
-        max-width: 95% !important;
+    .container { /* General .container, used by disponibilita.html */
+        max-width: 95% !important; /* Ensure it doesn't touch screen edges */
     }
     
     /* Miglior visibilità per le tabelle su tablet */

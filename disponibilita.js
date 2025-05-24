@@ -43,7 +43,7 @@ let db;
 let currentDate = new Date();
 let currentMonth = currentDate.getMonth();
 let currentYear = currentDate.getFullYear();
-let selectedDate = null;
+let selectedDate = null; // Mantiene la data selezionata dal calendario (YYYY-MM-DD)
 let availabilityByDate = {};
 
 // Elementi del DOM (inizializzati in DOMContentLoaded)
@@ -51,9 +51,9 @@ let calendarGrid = null;
 let currentMonthElement = null;
 let prevMonthButton = null;
 let nextMonthButton = null;
-let selectedDateElement = null;
-let dateInput = null;
-let tableBody = null; // Aggiunto per la tabella
+let selectedDateElement = null; // Elemento per mostrare "Disponibilità per il GG/MM/AAAA"
+let dateInput = null; // Campo input type="date" nel form
+let tableBody = null; 
 
 // Verifica la connessione a Internet
 function checkInternetConnection() {
@@ -86,659 +86,466 @@ function retryOperation(operation, retries = MAX_RETRY) {
 
 // Funzione per caricare tutte le disponibilità dal database
 function loadAvailability() {
-    // Verifica la connessione a Internet
     if (!checkInternetConnection()) {
         showToast("Nessuna connessione Internet. Verifica la tua connessione e riprova.", true);
+        return;
+    }
+    if (!window.firebaseWrapper || !window.firebaseWrapper.isInitialized) {
+        console.warn("Disponibilita: Firebase Wrapper non pronto, loadAvailability posticipato.");
         return;
     }
     
     try {
         const firebaseFunctions = window.firebaseWrapper;
-        if (!firebaseFunctions) {
-            console.error("FirebaseWrapper non disponibile");
-            showToast("Errore di connessione al database. Ricarica la pagina.", true);
+        db = firebaseFunctions.getDatabase(); 
+        if (!db) {
+            console.error("Disponibilita: Impossibile ottenere l'istanza del database da FirebaseWrapper.");
+            showToast("Errore di connessione al database. Riprova più tardi.", true);
             return;
         }
-
-        db = typeof firebase !== 'undefined' ? firebase.database() : firebaseFunctions.getDatabase();
         
-        const disponibilitaRef = typeof firebase !== 'undefined' 
-            ? firebase.database().ref("disponibilita") 
-            : firebaseFunctions.ref("disponibilita");
+        const disponibilitaRef = firebaseFunctions.ref("disponibilita");
+        const onValueFn = firebaseFunctions.onValue;
             
-        const onValueFn = typeof firebase !== 'undefined'
-            ? (ref, callback, errorCallback) => ref.on('value', callback, errorCallback)
-            : firebaseFunctions.onValue;
-            
+        console.log("Disponibilita: Inizio caricamento disponibilità da Firebase...");
         onValueFn(disponibilitaRef, (snapshot) => {
-            // Resetta l'oggetto delle disponibilità
-            availabilityByDate = {};
+            console.log("Disponibilita: Dati ricevuti da Firebase.");
+            availabilityByDate = {}; 
+            let datesLoaded = 0;
             
             if (snapshot.exists()) {
-                snapshot.forEach((child) => {
-                    const disponibilita = child.val();
-                    const key = child.key;
-                    
-                    if (disponibilita) {
-                        // Organizza le disponibilità per data
-                        if (!availabilityByDate[key]) {
-                            availabilityByDate[key] = [];
-                        }
+                try {
+                    snapshot.forEach((dateSnapshot) => { 
+                        const dateKey = dateSnapshot.key;
+                        const slotsForDate = dateSnapshot.val();
                         
-                        for (const slotKey in disponibilita) {
-                            const slot = disponibilita[slotKey];
-                            availabilityByDate[key].push({
-                                id: slotKey,
-                                ...slot
-                            });
+                        if (slotsForDate && typeof slotsForDate === 'object') {
+                            availabilityByDate[dateKey] = [];
+                            let slotsProcessedForDate = 0;
+                            for (const slotKey in slotsForDate) {
+                                const slot = slotsForDate[slotKey];
+                                if (slot && typeof slot.startTime === 'string' && typeof slot.endTime === 'string') { 
+                                    availabilityByDate[dateKey].push({
+                                        id: slotKey, 
+                                        data: dateKey, 
+                                        ...slot
+                                    });
+                                    slotsProcessedForDate++;
+                                } else {
+                                    console.warn(`Disponibilita: Slot ${slotKey} per data ${dateKey} non valido o incompleto:`, slot);
+                                }
+                            }
+                            if (slotsProcessedForDate > 0) datesLoaded++;
+                        } else {
+                            console.warn(`Disponibilita: Dati per la data ${dateKey} non sono un oggetto valido:`, slotsForDate);
                         }
-                    }
-                });
+                    });
+                    if (datesLoaded > 0) console.log(`Disponibilita: Caricamento disponibilità completato. ${datesLoaded} date con slot caricate.`);
+                    else console.log("Disponibilita: Nessuna data con disponibilità attiva trovata nel database.");
+                } catch (processingError) {
+                    console.error("Disponibilita: Errore durante l'elaborazione degli slot di disponibilità:", processingError);
+                    showToast("Errore nell'elaborazione dei dati di disponibilità.", true);
+                }
+            } else {
+                console.log("Disponibilita: Nessun dato di disponibilità trovato nel database (snapshot non esistente).");
             }
             
-            // Aggiorna il calendario con le nuove disponibilità se gli elementi sono disponibili
-            if (calendarGrid && currentMonthElement) {
-                renderCalendar();
-            }
+            if (calendarGrid && currentMonthElement) renderCalendar();
+            renderAvailabilityTable(); 
             
-            // Aggiorna la tabella delle disponibilità
-            renderAvailabilityTable(); // La funzione ora controlla se tableBody esiste
-            
-            // Se c'è una data selezionata, mostra le disponibilità per quella data
+            // Se una data era stata selezionata, aggiorna la vista della tabella per quella data.
+            // Altrimenti, la tabella mostrerà tutte le disponibilità o "nessuna trovata".
             if (selectedDate && selectedDateElement) {
-                showAvailabilityForDate(selectedDate);
+                 showAvailabilityForDate(selectedDate);
+            } else if (selectedDateElement) { // Se non c'è selectedDate ma l'elemento esiste, resetta il titolo
+                 selectedDateElement.textContent = 'Disponibilità correnti';
             }
+
         }, (error) => {
-            console.error("Errore nel caricamento delle disponibilità:", error);
+            console.error("Disponibilita: Errore Firebase nel caricamento delle disponibilità:", error);
             showToast("Errore nel caricamento delle disponibilità. Riprova più tardi.", true);
-            
-            // Riprova a caricare i dati
             if (retryAttempts < MAX_RETRY) {
-                retryAttempts++;
-                setTimeout(loadAvailability, RETRY_DELAY);
+                retryAttempts++; setTimeout(loadAvailability, RETRY_DELAY);
                 showToast(`Tentativo di riconnessione ${retryAttempts}/${MAX_RETRY}...`);
             } else {
                 showToast("Impossibile caricare le disponibilità. Ricarica la pagina.", true);
             }
         });
-    } catch (error) {
-        console.error("Errore durante il caricamento delle disponibilità:", error);
-        showToast("Si è verificato un errore. Riprova più tardi.", true);
+    } catch (error) { 
+        console.error("Disponibilita: Errore durante l'impostazione del caricamento delle disponibilità:", error);
+        showToast("Si è verificato un errore di configurazione. Riprova più tardi.", true);
     }
 }
 
-// Funzione per aggiungere una nuova disponibilità
 function addAvailability(data, orarioInizio, orarioFine, descrizione) {
+    // ... (implementazione invariata, già logga e gestisce errori)
     if (!checkInternetConnection()) {
         showToast("Nessuna connessione Internet. Verifica la tua connessione e riprova.", true);
-        return Promise.reject("Nessuna connessione Internet");
+        return Promise.reject(new Error("Nessuna connessione Internet"));
     }
-    
+    if (!window.firebaseWrapper || !window.firebaseWrapper.isInitialized) {
+        console.error("Disponibilita Form: FirebaseWrapper non pronto.");
+        showToast("Servizio non pronto, riprova tra poco.", true);
+        return Promise.reject(new Error("FirebaseWrapper non pronto"));
+    }
     try {
         const firebaseFunctions = window.firebaseWrapper;
-        const refFn = typeof firebase !== 'undefined'
-            ? (path) => firebase.database().ref(path)
-            : firebaseFunctions.ref;
-        
-        // Usa la data come chiave principale per raggruppare le disponibilità per giorno
-        const dateRef = refFn(`disponibilita/${data}`);
-        
-        // Genera un ID univoco per questa disponibilità all'interno del nodo della data
-        const newSlotRef = dateRef.push();
-        
-        // Salva i dati della disponibilità
-        return newSlotRef.set({
-            startTime: orarioInizio,
-            endTime: orarioFine,
-            description: descrizione,
-            isActive: true,  // Imposta esplicitamente isActive a true
-            isBooked: false  // Imposta esplicitamente isBooked a false
+        const dateRef = firebaseFunctions.ref(`disponibilita/${data}`);
+        const newSlotRef = firebaseFunctions.push(dateRef);
+        return firebaseFunctions.set(newSlotRef, {
+            startTime: orarioInizio, endTime: orarioFine, description: descrizione,
+            isActive: true, isBooked: false
+        }).then(() => {
+            console.log(`Disponibilita: Dati salvati per ${data} ${orarioInizio}-${orarioFine} con ID ${newSlotRef.key}`);
+            return newSlotRef; 
+        }).catch(error => {
+            console.error(`Disponibilita Form: Errore Firebase durante il salvataggio per ${data}:`, error);
+            showToast(`Errore nel salvataggio: ${error.message || "Errore sconosciuto"}`, true);
+            return Promise.reject(error); 
         });
-    } catch (error) {
-        console.error("Errore durante l'aggiunta della disponibilità:", error);
+    } catch (error) { 
+        console.error("Disponibilita Form: Errore JS durante l'aggiunta:", error);
+        showToast("Errore imprevisto durante l'aggiunta.", true);
         return Promise.reject(error);
     }
 }
 
-// Funzione per migrare vecchie disponibilità al nuovo formato
 function migrateOldDataToNewFormat() {
+    // ... (implementazione invariata, già logga e gestisce errori)
     if (!checkInternetConnection()) {
         showToast("Nessuna connessione Internet. Verifica la tua connessione e riprova.", true);
         return Promise.reject("Nessuna connessione Internet");
     }
-    
+    if (!window.firebaseWrapper || !window.firebaseWrapper.isInitialized) {
+        console.error("Migrazione Dati: FirebaseWrapper non pronto.");
+        showToast("Servizio non pronto per la migrazione, riprova tra poco.", true);
+        return Promise.reject(new Error("FirebaseWrapper non pronto"));
+    }
+    console.log("Migrazione Dati: Avvio migrazione vecchi dati...");
     try {
         const firebaseFunctions = window.firebaseWrapper;
-        const refFn = typeof firebase !== 'undefined'
-            ? (path) => firebase.database().ref(path)
-            : firebaseFunctions.ref;
-        
-        // Riferimento al nodo principale delle disponibilità
-        const disponibilitaRef = refFn('disponibilita');
-        
-        return disponibilitaRef.once('value').then(snapshot => {
+        const disponibilitaRef = firebaseFunctions.ref('disponibilita');
+        return firebaseFunctions.get(disponibilitaRef).then(snapshot => { 
             if (!snapshot.exists()) {
-                console.log("Nessun dato di disponibilità da migrare");
-                return;
+                console.log("Migrazione Dati: Nessun dato da migrare.");
+                showToast("Nessun dato da migrare.", false); return;
             }
-            
-            const updates = {};
-            let migrationNeeded = false;
-            
-            snapshot.forEach(child => {
+            const updates = {}; let migrationNeeded = false;
+            snapshot.forEach(child => { 
+                const key = child.key; 
                 const disponibilita = child.val();
-                const key = child.key;
-                
-                // Verifica se è nel vecchio formato (ha un campo 'data')
-                if (disponibilita && disponibilita.data) {
+                if (disponibilita && disponibilita.data && disponibilita.orarioInizio && !/^\d{4}-\d{2}-\d{2}$/.test(key)) {
                     migrationNeeded = true;
-                    console.log(`Migrazione disponibilità con ID ${key} alla data ${disponibilita.data}`);
-                    
-                    // Crea un nuovo slot con il formato corretto
-                    const newSlotData = {
-                        startTime: disponibilita.orarioInizio,
-                        endTime: disponibilita.orarioFine,
-                        description: disponibilita.descrizione,
-                        isActive: true,
-                        isBooked: false
+                    console.log(`Migrazione Dati: Trovato vecchio formato per ID ${key}, data ${disponibilita.data}`);
+                    updates[`${disponibilita.data}/${key}`] = {
+                        startTime: disponibilita.orarioInizio, endTime: disponibilita.orarioFine,
+                        description: disponibilita.descrizione, isActive: true, isBooked: false
                     };
-                    
-                    // Aggiungi all'oggetto updates
-                    updates[`${disponibilita.data}/${key}`] = newSlotData;
-                    
-                    // Elimina il vecchio record
-                    updates[key] = null;
+                    updates[key] = null; 
                 }
             });
-            
             if (!migrationNeeded) {
-                console.log("Tutti i dati sono già nel formato corretto");
+                console.log("Migrazione Dati: Nessuna migrazione necessaria.");
+                showToast("Nessuna migrazione necessaria o dati già aggiornati.", false);
                 return Promise.resolve();
             }
-            
-            // Esegui gli aggiornamenti in un'unica transazione
-            return disponibilitaRef.update(updates).then(() => {
-                console.log("Migrazione completata con successo");
-                showToast("Migrazione dei dati completata con successo!");
+            console.log("Migrazione Dati: Esecuzione aggiornamenti Firebase...", updates);
+            return firebaseFunctions.update(disponibilitaRef, updates).then(() => {
+                console.log("Migrazione Dati: Migrazione completata.");
+                showToast("Migrazione dati completata!", false);
+            }).catch(error => {
+                console.error("Migrazione Dati: Errore Firebase update:", error);
+                showToast("Errore aggiornamento dati migrati.", true);
+                return Promise.reject(error);
             });
         });
     } catch (error) {
-        console.error("Errore durante la migrazione dei dati:", error);
-        showToast("Errore durante la migrazione dei dati", true);
+        console.error("Migrazione Dati: Errore JS:", error);
+        showToast("Errore durante la migrazione.", true);
         return Promise.reject(error);
     }
 }
 
-// Funzione per inizializzare gli elementi DOM (chiamata da DOMContentLoaded)
 function initDOMElements() {
+    // ... (implementazione invariata)
     calendarGrid = document.querySelector('.calendar-grid');
     currentMonthElement = document.getElementById('currentMonth');
     prevMonthButton = document.getElementById('prevMonth');
     nextMonthButton = document.getElementById('nextMonth');
     selectedDateElement = document.getElementById('selectedDate');
     dateInput = document.getElementById('data');
-    tableBody = document.querySelector('#tabellaDisponibilita tbody'); // Inizializza tableBody
-    
+    tableBody = document.querySelector('#tabellaDisponibilita tbody'); 
     if (prevMonthButton && !prevMonthButton._hasClickListener) {
         prevMonthButton.addEventListener('click', () => {
-            currentMonth--;
-            if (currentMonth < 0) {
-                currentMonth = 11;
-                currentYear--;
-            }
-            renderCalendar();
+            currentMonth--; if (currentMonth < 0) { currentMonth = 11; currentYear--; } renderCalendar();
         });
         prevMonthButton._hasClickListener = true;
     }
-
     if (nextMonthButton && !nextMonthButton._hasClickListener) {
         nextMonthButton.addEventListener('click', () => {
-            currentMonth++;
-            if (currentMonth > 11) {
-                currentMonth = 0;
-                currentYear++;
-            }
-            renderCalendar();
+            currentMonth++; if (currentMonth > 11) { currentMonth = 0; currentYear++; } renderCalendar();
         });
         nextMonthButton._hasClickListener = true;
     }
 }
 
-// Funzione per formattare una data nel formato italiano
 function formatDateIT(dateStr) {
     if (!dateStr) return '';
-    
     const [year, month, day] = dateStr.split("-");
     return `${day}/${month}/${year}`;
 }
 
-// Funzione per renderizzare il calendario
 function renderCalendar() {
-    if (!calendarGrid || !currentMonthElement) {
-        return;
-    }
-
+    // ... (implementazione invariata, ma il click listener ora pre-popola il form)
+    if (!calendarGrid || !currentMonthElement) return;
     try {
-        // Aggiorna il titolo del mese
-        const monthNames = ["Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno", "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"];
+        const monthNames = ["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
         currentMonthElement.textContent = `${monthNames[currentMonth]} ${currentYear}`;
-        
-        // Rimuovi tutti i giorni esistenti, tranne i nomi dei giorni
-        const daysElements = calendarGrid.querySelectorAll('.day');
-        daysElements.forEach(day => day.remove());
-        
-        // Ottieni il primo giorno del mese (0 = Domenica, 1 = Lunedì, ...)
+        calendarGrid.querySelectorAll('.day').forEach(day => day.remove());
         const firstDayOfMonth = new Date(currentYear, currentMonth, 1).getDay();
-        
-        // Adatta l'indice del giorno per iniziare con lunedì (0 = Lunedì, 6 = Domenica)
         const adjustedFirstDay = (firstDayOfMonth === 0) ? 6 : firstDayOfMonth - 1;
-        
-        // Numero di giorni nel mese corrente
         const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-        
-        // Aggiungi celle vuote per i giorni prima del primo del mese
         for (let i = 0; i < adjustedFirstDay; i++) {
             const emptyDay = document.createElement('div');
-            emptyDay.className = 'day empty';
-            calendarGrid.appendChild(emptyDay);
+            emptyDay.className = 'day empty'; calendarGrid.appendChild(emptyDay);
         }
-        
-        // Ottieni la data odierna per evidenziarla
         const today = new Date();
-        const todayDateString = today.getFullYear() + '-' + 
-                               String(today.getMonth() + 1).padStart(2, '0') + '-' + 
-                               String(today.getDate()).padStart(2, '0');
+        const todayDateString = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
         
-        // Aggiungi i giorni del mese
         for (let day = 1; day <= daysInMonth; day++) {
             const dayElement = document.createElement('div');
-            dayElement.className = 'day';
-            dayElement.textContent = day;
+            dayElement.className = 'day'; dayElement.textContent = day;
+            const dateString = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            if (dateString === todayDateString) dayElement.classList.add('today');
+            if (availabilityByDate[dateString] && availabilityByDate[dateString].length > 0) dayElement.classList.add('has-slots');
+            if (selectedDate === dateString) dayElement.classList.add('selected');
             
-            // Formatta la data in formato YYYY-MM-DD per confrontarla con le disponibilità
-            const dateString = currentYear + '-' + 
-                             String(currentMonth + 1).padStart(2, '0') + '-' + 
-                             String(day).padStart(2, '0');
-            
-            // Evidenzia il giorno odierno
-            if (dateString === todayDateString) {
-                dayElement.classList.add('today');
-            }
-            
-            // Evidenzia i giorni con disponibilità
-            if (availabilityByDate[dateString] && availabilityByDate[dateString].length > 0) {
-                dayElement.classList.add('has-slots');
-            }
-            
-            // Evidenzia il giorno selezionato
-            if (selectedDate === dateString) {
-                dayElement.classList.add('selected');
-            }
-            
-            // Event listener per selezionare il giorno
             dayElement.addEventListener('click', () => {
-                // Verifichiamo che dateInput esista prima di usarlo
-                if (!dateInput) {
-                    console.error("Elemento data non trovato nel DOM per l'aggiornamento.");
-                    return; // Esce se dateInput non è disponibile
-                }
-                
-                // Rimuovi la classe selected da tutti i giorni
-                document.querySelectorAll('.day.selected').forEach(el => {
-                    el.classList.remove('selected');
-                });
-                
-                // Aggiungi la classe selected al giorno cliccato
+                if (!dateInput) { console.error("Disponibilita Calendar: dateInput non trovato."); return; }
+                document.querySelectorAll('.day.selected').forEach(el => el.classList.remove('selected'));
                 dayElement.classList.add('selected');
-                
-                // Imposta la data selezionata
-                selectedDate = dateString;
-                
-                // Aggiorna il campo data nel form
-                dateInput.value = selectedDate;
-                
-                // Mostra le disponibilità per la data selezionata (controlla se selectedDateElement esiste)
-                if (selectedDateElement) {
-                    showAvailabilityForDate(selectedDate);
-                } else {
-                    renderAvailabilityTable();
-                }
+                selectedDate = dateString; // Aggiorna la variabile globale
+                dateInput.value = selectedDate; // Pre-popola il campo data del form
+                if (selectedDateElement) showAvailabilityForDate(selectedDate);
+                else renderAvailabilityTable(); 
             });
-            
             calendarGrid.appendChild(dayElement);
         }
     } catch (error) {
-        console.error("Errore nella renderizzazione del calendario:", error);
-        showToast("Errore nella visualizzazione del calendario.", true);
+        console.error("Disponibilita: Errore renderCalendar:", error);
+        showToast("Errore visualizzazione calendario.", true);
     }
 }
 
-// Funzione per mostrare le disponibilità di una data specifica
 function showAvailabilityForDate(date) {
-    if (selectedDateElement) {
-        selectedDateElement.textContent = `Disponibilità per il ${formatDateIT(date)}`;
-    }
-    
+    // ... (implementazione invariata)
+    if (selectedDateElement) selectedDateElement.textContent = `Disponibilità per il ${formatDateIT(date)}`;
     try {
         const filteredAvailability = availabilityByDate[date] || [];
-        renderAvailabilityTable(filteredAvailability);
+        renderAvailabilityTable(filteredAvailability); 
     } catch (error) {
-        console.error("Errore nella visualizzazione delle disponibilità per data:", error);
-        showToast("Errore nella visualizzazione delle disponibilità.", true);
+        console.error(`Disponibilita: Errore showAvailabilityForDate ${date}:`, error);
+        showToast("Errore visualizzazione disponibilità.", true);
     }
 }
 
-// Funzione per renderizzare la tabella delle disponibilità
 function renderAvailabilityTable(disponibilita = null) {
-    if (!tableBody) {
-        return;
-    }
-    
+    // ... (implementazione invariata, ma il delete button ora usa data-date)
+    if (!tableBody) return;
     try {
         let allDisponibilitaToShow = [];
         if (disponibilita === null) {
-            for (const date in availabilityByDate) {
-                if (availabilityByDate[date]) {
-                    allDisponibilitaToShow.push(...availabilityByDate[date]);
-                }
-            }
-        } else {
-            allDisponibilitaToShow = disponibilita;
-        }
-        
-        tableBody.innerHTML = '';
-        
+            for (const date in availabilityByDate) { if (availabilityByDate[date]) allDisponibilitaToShow.push(...availabilityByDate[date]); }
+        } else { allDisponibilitaToShow = disponibilita; }
+        tableBody.innerHTML = ''; 
         if (allDisponibilitaToShow.length === 0) {
             const row = document.createElement('tr');
             row.innerHTML = `<td colspan="4" style="text-align: center; font-style: italic;">Nessuna disponibilità trovata</td>`;
-            tableBody.appendChild(row);
-            return;
+            tableBody.appendChild(row); return;
         }
-        
         allDisponibilitaToShow.sort((a, b) => {
-            if (a.data === b.data) {
-                return a.startTime.localeCompare(b.startTime);
-            }
+            if (a.data === b.data) return a.startTime.localeCompare(b.startTime);
             return a.data.localeCompare(b.data);
         });
-        
         allDisponibilitaToShow.forEach(disp => {
             const row = document.createElement('tr');
-            
             const orario = `${disp.startTime} - ${disp.endTime}`;
+            const dataFormatted = disp.data ? formatDateIT(disp.data) : 'Data non specificata';
             row.innerHTML = `
-                <td>${formatDateIT(disp.data)}</td>
-                <td>${orario}</td>
-                <td>${disp.description}</td>
-                <td>
-                    <button class="delete-btn" data-id="${disp.id}">
-                        <i class="fas fa-trash-alt"></i> Elimina
-                    </button>
-                </td>
-            `;
+                <td>${dataFormatted}</td> <td>${orario}</td> <td>${disp.description || ''}</td>
+                <td><button class="delete-btn" data-id="${disp.id}" data-date="${disp.data || ''}"><i class="fas fa-trash-alt"></i> Elimina</button></td>`;
             
             row.querySelector('.delete-btn').addEventListener('click', function() {
                 const id = this.getAttribute('data-id');
-                if (confirm("Sei sicuro di voler eliminare questa disponibilità?")) {
+                const slotDate = this.getAttribute('data-date');
+                if (!slotDate || !id) {
+                    console.error("Disponibilita Table Delete: ID slot o data mancante.");
+                    showToast("Errore: ID slot o data mancante.", true); return;
+                }
+                if (confirm(`Sei sicuro di voler eliminare disponibilità (${slotDate} - ${orario})?`)) {
                     const firebaseFunctions = window.firebaseWrapper;
-                    this.disabled = true;
-                    this.style.opacity = "0.5";
-                    this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Eliminando...';
-                    
+                    this.disabled = true; this.style.opacity = "0.5"; this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Eliminando...';
+                    const firebasePath = `disponibilita/${slotDate}/${id}`; 
+                    console.log(`Disponibilita Table: Tentativo eliminazione slot ID: ${id}, Path: ${firebasePath}`);
                     try {
-                        const removeFn = typeof firebase !== 'undefined'
-                            ? (ref) => ref.remove()
-                            : firebaseFunctions.remove;
-
-                        const refFn = typeof firebase !== 'undefined'
-                            ? (path) => firebase.database().ref(path)
-                            : firebaseFunctions.ref;
-
-                        const disponibilitaRef = refFn(`disponibilita/${disp.data}/${id}`);
-                        removeFn(disponibilitaRef)
+                        firebaseFunctions.remove(firebaseFunctions.ref(firebasePath))
                             .then(() => {
-                                showToast("Disponibilità eliminata con successo!");
+                                console.log(`Disponibilita Table: Slot ${id} eliminato da ${firebasePath}`);
+                                showToast("Disponibilità eliminata!");
                             })
                             .catch(error => {
-                                console.error("Errore nell'eliminazione della disponibilità:", error);
-                                showToast("Si è verificato un errore. Riprova più tardi.", true);
-                                
-                                this.disabled = false;
-                                this.style.opacity = "1";
-                                this.innerHTML = '<i class="fas fa-trash-alt"></i> Elimina';
-                                
-                                retryOperation(() => removeFn(refFn(`disponibilita/${disp.data}/${id}`)));
+                                console.error(`Disponibilita Table: Errore Firebase eliminazione slot ID ${id} da ${firebasePath}:`, error);
+                                showToast(`Errore eliminazione: ${error.message || "Errore sconosciuto."}`, true);
+                                this.disabled = false; this.style.opacity = "1"; this.innerHTML = '<i class="fas fa-trash-alt"></i> Elimina';
                             });
-                    } catch (error) {
-                        console.error("Errore durante l'eliminazione:", error);
-                        showToast("Si è verificato un errore. Riprova più tardi.", true);
-                        
-                        this.disabled = false;
-                        this.style.opacity = "1";
-                        this.innerHTML = '<i class="fas fa-trash-alt"></i> Elimina';
+                    } catch (syncError) { 
+                        console.error(`Disponibilita Table: Errore JS preparazione eliminazione slot ID ${id}:`, syncError);
+                        showToast("Errore imprevisto eliminazione.", true);
+                        this.disabled = false; this.style.opacity = "1"; this.innerHTML = '<i class="fas fa-trash-alt"></i> Elimina';
                     }
                 }
             });
-            
             tableBody.appendChild(row);
         });
     } catch (error) {
-        console.error("Errore nella renderizzazione della tabella:", error);
-        showToast("Errore nella visualizzazione della tabella.", true);
+        console.error("Disponibilita: Errore renderAvailabilityTable:", error);
+        showToast("Errore visualizzazione tabella.", true);
     }
 }
 
-// Inizializzazione
-document.addEventListener('DOMContentLoaded', () => {
-    // Assicuriamoci che il wrapper Firebase sia disponibile
-    if (!window.firebaseWrapper) {
-        console.error("Firebase wrapper non disponibile");
-        showToast("Errore di inizializzazione. Ricarica la pagina.", true);
-    } else {
-        console.log("Firebase wrapper trovato, inizializzazione in corso...");
-    }
-
+function initializeDisponibilitaApp() {
+    console.log("Disponibilita: Initializing app components...");
     initDOMElements();
-    
+
     const aggiungiBtn = document.getElementById("aggiungiDisponibilita");
     if (aggiungiBtn) {
         aggiungiBtn.addEventListener("click", function(e) {
             e.preventDefault();
+            if (!checkInternetConnection()) { showToast("Nessuna connessione Internet.", true); return; }
             
-            if (!checkInternetConnection()) {
-                showToast("Nessuna connessione Internet. Verifica la tua connessione e riprova.", true);
-                return;
-            }
-            
-            const dataInputForm = document.getElementById("data");
+            const dataInputForm = document.getElementById("data"); // Riferimento corretto
             const orarioInizioInput = document.getElementById("orarioInizio");
             const orarioFineInput = document.getElementById("orarioFine");
             const descrizioneInput = document.getElementById("descrizione");
             
-            // Verifica che tutti gli elementi del form esistano
             if (!dataInputForm || !orarioInizioInput || !orarioFineInput || !descrizioneInput) {
-                showToast("Errore: elementi del form non trovati.", true);
-                return;
+                console.error("Disponibilita Form: Elementi del form non trovati.");
+                showToast("Errore: elementi del form non trovati.", true); return;
             }
             
-            const data = dataInputForm.value;
+            let dataToSave = dataInputForm.value; // Usa let per poterla modificare
             const orarioInizio = orarioInizioInput.value;
             const orarioFine = orarioFineInput.value;
             const descrizione = descrizioneInput.value;
-            
-            // Aggiungi stili inline per AI Assistant se non presenti
-            if (!document.querySelector('#ai-assistant-inline-styles')) {
-                const styles = document.createElement('style');
-                styles.id = 'ai-assistant-inline-styles';
-                styles.textContent = `
-                    .ai-assistant-container { position: fixed !important; bottom: 20px !important; right: 20px !important; z-index: 9999 !important; }
-                    .ai-assistant-button { width: 60px !important; height: 60px !important; background: linear-gradient(135deg, #667eea, #764ba2, #f093fb) !important; color: white !important; border-radius: 50% !important; display: flex !important; align-items: center !important; justify-content: center !important; cursor: pointer !important; box-shadow: 0 4px 20px rgba(0,0,0,0.3) !important; border: none !important; font-size: 18px !important; }
-                    .ai-assistant-chatbox { position: fixed !important; bottom: 90px !important; right: 20px !important; width: 350px !important; height: 450px !important; background: white !important; border-radius: 12px !important; box-shadow: 0 10px 40px rgba(0,0,0,0.3) !important; display: none !important; flex-direction: column !important; border: 1px solid #e0e0e0 !important; }
-                    .ai-assistant-chatbox.active { display: flex !important; }
-                `;
-                document.head.appendChild(styles);
+
+            // Se il campo data del form è vuoto MA una data è stata selezionata dal calendario, usa quella.
+            if (!dataToSave && selectedDate) {
+                dataToSave = selectedDate;
+                console.log(`Disponibilita Form: Campo data vuoto, utilizzo data selezionata dal calendario: ${dataToSave}`);
             }
             
-            if (!data || !orarioInizio || !orarioFine || !descrizione) {
-                showToast("Inserisci tutti i dati correttamente.", true);
-                return;
-            }
+            console.log(`Disponibilita Form: Tentativo aggiunta. Data: ${dataToSave}, Inizio: ${orarioInizio}, Fine: ${orarioFine}, Desc: ${descrizione}.`);
             
+            if (!dataToSave || !orarioInizio || !orarioFine ) { 
+                showToast("Inserisci Data, Ora Inizio e Ora Fine.", true); return;
+            }
             if (orarioInizio >= orarioFine) {
-                showToast("L'ora di fine deve essere successiva all'ora di inizio.", true);
-                return;
+                showToast("L'ora di fine deve essere successiva all'ora di inizio.", true); return;
             }
             
-            aggiungiBtn.disabled = true;
-            aggiungiBtn.style.opacity = "0.7";
+            aggiungiBtn.disabled = true; aggiungiBtn.style.opacity = "0.7";
             const originalButtonText = aggiungiBtn.innerHTML;
             aggiungiBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Salvataggio...';
             
-            // Usa la nuova funzione addAvailability
-            addAvailability(data, orarioInizio, orarioFine, descrizione)
-                .then(() => {
+            addAvailability(dataToSave, orarioInizio, orarioFine, descrizione)
+                .then((newSlotRef) => { 
+                    if(dataInputForm) dataInputForm.value = ""; // Pulisci anche il campo data
                     if (orarioInizioInput) orarioInizioInput.value = "";
                     if (orarioFineInput) orarioFineInput.value = "";
                     if (descrizioneInput) descrizioneInput.value = "";
                     
+                    const slotId = newSlotRef && newSlotRef.key ? newSlotRef.key : 'N/A';
+                    console.log(`Disponibilita Form: Aggiunta successo ID: ${slotId} path: disponibilita/${dataToSave}/${slotId}`);
                     showToast("Disponibilità aggiunta con successo!");
-                    
-                    // Notifica l'AI dell'operazione
-                    if (window.aiAssistantNotifyAvailabilityAdded) {
-                        window.aiAssistantNotifyAvailabilityAdded({
-                            date: data,
-                            startTime: orarioInizio,
-                            endTime: orarioFine,
-                            description: descrizione
-                        });
-                    }
+                    // Non è necessario notificare l'AI Assistant qui, il listener onValue aggiornerà i dati per tutti.
                 })
-                .catch(error => {
-                    console.error("Errore nell'aggiunta della disponibilità:", error);
-                    showToast("Si è verificato un errore. Riprova più tardi.", true);
-                    
-                    retryOperation(() => {
-                        return addAvailability(data, orarioInizio, orarioFine, descrizione);
-                    });
-                })
+                .catch(error => { /* Errore già gestito e loggato da addAvailability */ })
                 .finally(() => {
-                    aggiungiBtn.disabled = false;
-                    aggiungiBtn.style.opacity = "1";
+                    aggiungiBtn.disabled = false; aggiungiBtn.style.opacity = "1";
                     aggiungiBtn.innerHTML = originalButtonText;
                 });
         });
     }
 
-    // Funzioni globali per permettere all'AI di gestire le disponibilità
-    window.addAvailabilityFromAI = async function(date, startTime, endTime, description = '') {
-        try {
-            await addAvailability(date, startTime, endTime, description);
-            renderCalendar(); // Aggiorna il calendario
-            renderAvailabilityTable(); // Aggiorna la tabella
-            return { success: true };
-        } catch (error) {
-            throw new Error(`Errore nell'aggiunta: ${error.message}`);
-        }
-    };
-
-    window.removeAvailabilityFromAI = async function(date, startTime) {
-        const slots = availabilityByDate[date];
-        if (!slots) throw new Error("Nessuna disponibilità trovata per questa data");
-        
-        let slotToRemove = null;
-        for (const slot of slots) {
-            if (slot.startTime === startTime) {
-                slotToRemove = slot;
-                break;
-            }
-        }
-        
-        if (!slotToRemove) throw new Error("Slot non trovato");
-        
-        try {
-            const firebaseFunctions = window.firebaseWrapper;
-            const refFn = typeof firebase !== 'undefined'
-                ? (path) => firebase.database().ref(path)
-                : firebaseFunctions.ref;
-            const removeFn = typeof firebase !== 'undefined'
-                ? (ref) => ref.remove()
-                : firebaseFunctions.remove;
-
-            const disponibilitaRef = refFn(`disponibilita/${date}/${slotToRemove.id}`);
-            await removeFn(disponibilitaRef);
-            
-            renderCalendar();
-            renderAvailabilityTable();
-            return { success: true };
-        } catch (error) {
-            throw new Error(`Errore nella rimozione: ${error.message}`);
-        }
-    };
-
     const today = new Date();
-    const formattedDate = today.getFullYear() + '-' + 
-                        String(today.getMonth() + 1).padStart(2, '0') + '-' + 
-                        String(today.getDate()).padStart(2, '0');
+    const formattedDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
     
-    // Aggiungi pulsante di migrazione (opzionale - solo per test)
+    // Imposta la data di default nel form e come selectedDate globale se il calendario è presente
+    if (dateInput) {
+        if (!dateInput.value) dateInput.value = formattedDate; // Imposta il campo data del form
+        if (calendarGrid) selectedDate = dateInput.value; // Sincronizza selectedDate globale
+    }
+    
     const footerArea = document.querySelector('.footer-area');
     if (footerArea) {
+        // ... (codice bottone migrazione invariato)
         const migrateButton = document.createElement('button');
-        migrateButton.className = 'button';
-        migrateButton.style.marginRight = '10px';
+        migrateButton.className = 'button'; migrateButton.style.marginRight = '10px';
         migrateButton.innerHTML = '<i class="fas fa-sync-alt"></i> Migra dati vecchi';
         migrateButton.addEventListener('click', function() {
-            if (confirm("Vuoi migrare i dati delle disponibilità dal vecchio al nuovo formato? Questa operazione è necessaria solo se hai creato disponibilità con una versione precedente dell'applicazione.")) {
-                this.disabled = true;
-                this.style.opacity = "0.7";
+            if (confirm("Vuoi migrare i dati delle disponibilità dal vecchio al nuovo formato?")) {
+                this.disabled = true; this.style.opacity = "0.7";
                 const originalButtonText = this.innerHTML;
                 this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Migrazione in corso...';
-                
                 migrateOldDataToNewFormat()
-                    .then(() => {
+                    .then(() => { 
                         this.innerHTML = '<i class="fas fa-check"></i> Migrazione completata';
-                        setTimeout(() => {
-                            this.innerHTML = originalButtonText;
-                            this.disabled = false;
-                            this.style.opacity = "1";
-                            location.reload(); // Ricarica la pagina per mostrare i dati migrati
-                        }, 2000);
+                        setTimeout(() => { this.innerHTML = originalButtonText; this.disabled = false; this.style.opacity = "1"; location.reload(); }, 2000);
                     })
-                    .catch(error => {
-                        console.error("Errore nella migrazione:", error);
-                        showToast("Si è verificato un errore durante la migrazione. Riprova più tardi.", true);
-                        this.innerHTML = originalButtonText;
-                        this.disabled = false;
-                        this.style.opacity = "1";
-                    });
+                    .catch(error => { this.innerHTML = originalButtonText; this.disabled = false; this.style.opacity = "1"; });
             }
         });
-        
-        // Inserisci il pulsante all'inizio del footer
         footerArea.insertBefore(migrateButton, footerArea.firstChild);
     }
     
-    if (dateInput) {
-        if (!dateInput.value) {
-             dateInput.value = formattedDate;
-        }
-        if (calendarGrid) {
-            selectedDate = formattedDate;
-        }
-    }
-    
     window.connectionWasOnline = navigator.onLine;
-    loadAvailability();
-    retryAttempts = 0;
+    loadAvailability(); 
+    retryAttempts = 0; 
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    console.log("Disponibilita: DOMContentLoaded. Verifico stato Firebase...");
+    if (window.firebaseWrapper && window.firebaseWrapper.isInitialized) {
+        console.log("Disponibilita: Firebase già inizializzato. Avvio app.");
+        initializeDisponibilitaApp();
+    } else {
+        console.log("Disponibilita: Firebase non inizializzato. In ascolto evento firebase-ready.");
+        document.addEventListener('firebase-ready', () => {
+            console.log("Disponibilita: Evento firebase-ready ricevuto. Avvio app.");
+            initializeDisponibilitaApp();
+        }, { once: true });
+        setTimeout(() => {
+            if (window.firebaseWrapper && window.firebaseWrapper.isInitialized && !calendarGrid) { 
+                 console.log("Disponibilita: Fallback check - Firebase pronto, app non inizializzata. Avvio app.");
+                 initializeDisponibilitaApp();
+            } else if (!window.firebaseWrapper || !window.firebaseWrapper.isInitialized) {
+                console.warn("Disponibilita: Firebase non pronto dopo fallback. UI potrebbe non funzionare.");
+                showToast("Errore connessione servizi. Ricarica pagina.", true);
+            }
+        }, 1500); 
+    }
 });
 
 setInterval(() => {
-    if (!checkInternetConnection() && window.connectionWasOnline !== false) {
-        showToast("Connessione Internet persa. Alcune funzioni potrebbero non funzionare correttamente.", true);
+    // ... (implementazione invariata)
+    const online = checkInternetConnection();
+    if (!online && window.connectionWasOnline !== false) {
+        showToast("Connessione Internet persa. Alcune funzioni potrebbero non funzionare.", true);
         window.connectionWasOnline = false;
-    } else if (checkInternetConnection() && window.connectionWasOnline === false) {
+    } else if (online && window.connectionWasOnline === false) {
         showToast("Connessione Internet ripristinata!");
         window.connectionWasOnline = true;
-        loadAvailability();
+        if (window.firebaseWrapper && window.firebaseWrapper.isInitialized) loadAvailability(); 
+        else console.warn("Disponibilita: Connessione ripristinata, Firebase non pronto.");
     }
 }, 5000);

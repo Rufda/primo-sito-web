@@ -7,17 +7,6 @@
  */
 
 (function() {
-    // Configurazione Firebase
-    const firebaseConfig = {
-        apiKey: "AIzaSyC6nZVPaWXtgjWOP8veInKk6Omkp5vEXbI",
-        authDomain: "primo-sito-web1.firebaseapp.com",
-        databaseURL: "https://primo-sito-web1-default-rtdb.firebaseio.com",
-        projectId: "primo-sito-web1",
-        storageBucket: "primo-sito-web1.firebasestorage.app",
-        messagingSenderId: "939095326009",
-        appId: "1:939095326009:web:9447f09ea845600ac7bce8"
-    };
-
     // Classe FirebaseWrapper
     class FirebaseWrapper {
         constructor() {
@@ -38,27 +27,34 @@
                 return;
             }
 
+            if (typeof firebaseConfig === 'undefined') {
+                console.error("Errore: firebaseConfig non è definito. Assicurati che config.js sia caricato prima di firebase-wrapper.js.");
+                this.showError("Errore di configurazione Firebase. Contatta l'amministratore.");
+                return;
+            }
+
             try {
                 // Verifica se è disponibile Firebase compat
-                if (typeof firebase !== 'undefined') {
+                if (typeof firebase !== 'undefined' && typeof firebase.initializeApp === 'function') {
                     console.log("Usando Firebase compat");
-                    this.app = firebase.initializeApp(firebaseConfig);
+                    this.app = firebase.initializeApp(firebaseConfig); // Usa firebaseConfig globale
                     this.auth = firebase.auth();
                     this.database = firebase.database();
-                    this.isModular = false;
+                    this.isModular = false; // Assumendo che stiamo usando la versione compat
                     this.isInitialized = true;
                     console.log("Firebase compat inizializzato con successo");
 
                     // Dispatch event when ready
-                    const event = new Event('firebase-ready');
+                    const event = new CustomEvent('firebase-ready', { detail: { wrapper: this } });
                     document.dispatchEvent(event);
+                    console.log("Evento firebase-ready dispatchato.");
 
                 } else {
-                    console.error("Firebase non è disponibile. Verifica che i file di Firebase siano caricati correttamente.");
-                    throw new Error("Firebase non disponibile");
+                    console.error("Firebase SDK non è disponibile o initializeApp non è una funzione. Verifica che i file di Firebase SDK siano caricati correttamente prima di firebase-wrapper.js.");
+                    throw new Error("Firebase SDK non disponibile");
                 }
             } catch (error) {
-                console.error("Errore durante l'inizializzazione di Firebase:", error);
+                console.error("Errore durante l'inizializzazione di Firebase:", error.message);
                 this.showError("Errore durante l'inizializzazione di Firebase. Riprova più tardi.");
                 throw error;
             }
@@ -261,5 +257,17 @@
 
     // Esporta l'istanza del wrapper come variabile globale
     window.firebaseWrapper = new FirebaseWrapper();
-    console.log("FirebaseWrapper inizializzato e pronto per l'uso");
+    console.log("FirebaseWrapper istanziato. Chiama initializeFirebase() per connetterti.");
+
+    // Tentativo di inizializzazione automatica se firebase SDK è già caricato.
+    // Questo è utile se firebase-wrapper.js è caricato dopo firebase SDK e config.js
+    if (typeof firebase !== 'undefined' && typeof firebaseConfig !== 'undefined') {
+        // Deferring initialization slightly to ensure config.js might have run
+        setTimeout(() => {
+            if (!window.firebaseWrapper.isInitialized) {
+                console.log("Tentativo di inizializzazione automatica di Firebase da firebase-wrapper.js");
+                window.firebaseWrapper.initializeFirebase();
+            }
+        }, 0);
+    }
 })();
