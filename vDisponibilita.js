@@ -77,27 +77,38 @@ document.addEventListener('DOMContentLoaded', () => {
     ------------------------------------------------------------------ */
     // Funzione per verificare se l'utente corrente è un amministratore
     function checkIfUserIsAdmin(uid) {
-        try {
-            const adminRef = firebaseWrapper.ref(`admin/${uid}`);
-            firebaseWrapper.onValue(adminRef, (snapshot) => {
-                isAdmin = snapshot.exists() && snapshot.val() === true;
-                
-                // Mostra o nascondi il pulsante di amministrazione in base al ruolo
-                if (btnGestionePrenotazioni) {
-                    btnGestionePrenotazioni.style.display = isAdmin ? "block" : "none";
-                }
-                
-                // Aggiorna lo stato nell'assistente AI
-                if (window.updateAIAssistantAdminStatus) {
-                    window.updateAIAssistantAdminStatus(isAdmin);
-                }
-                
-                console.log("Admin status:", isAdmin);
-            });
-        } catch (error) {
-            console.error("Errore durante il controllo dello stato admin:", error);
+        const userRoleRef = firebaseWrapper.ref(`users/${uid}/role`);
+        console.log(`vDisponibilita: Checking admin status for UID: ${uid} at path users/${uid}/role`);
+
+        firebaseWrapper.onValue(userRoleRef, (snapshot) => {
+            if (snapshot.exists() && snapshot.val() === 'admin') {
+                isAdmin = true;
+                console.log("vDisponibilita: User is ADMIN.");
+            } else {
+                isAdmin = false;
+                console.log("vDisponibilita: User is NOT an admin. Role found:", snapshot.val());
+            }
+
+            // Gestisci la visibilità dei pulsanti admin
+            if (btnModificaDisponibilita) {
+                btnModificaDisponibilita.style.display = isAdmin ? 'inline-flex' : 'none';
+            }
+            if (btnGestionePrenotazioni) {
+                btnGestionePrenotazioni.style.display = isAdmin ? 'inline-flex' : 'none';
+            }
+
+            // Aggiorna lo stato nell'assistente AI, se presente
+            if (window.updateAIAssistantAdminStatus) {
+                window.updateAIAssistantAdminStatus(isAdmin);
+            }
+        }, (error) => {
+            console.error(`vDisponibilita: Errore durante il recupero del ruolo dell'utente (UID: ${uid}):`, error);
             isAdmin = false;
-        }
+            // Assicurati che i pulsanti siano nascosti in caso di errore
+            if (btnModificaDisponibilita) btnModificaDisponibilita.style.display = 'none';
+            if (btnGestionePrenotazioni) btnGestionePrenotazioni.style.display = 'none';
+            if (window.updateAIAssistantAdminStatus) window.updateAIAssistantAdminStatus(false);
+        });
     }
 
     /* ------------------------------------------------------------------
