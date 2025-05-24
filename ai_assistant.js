@@ -15,6 +15,12 @@ let isGeminiReady = false;
 let lastApiCallTime = 0;
 const MIN_API_CALL_INTERVAL = 1000; // Millisecondi
 
+// Variabili globali per l'interfaccia utente dell'assistente AI
+// Queste verranno inizializzate in createAssistantUI
+let chatbox, assistantButton, closeButton, messagesContainer, inputField, sendButton, suggestionsContainer;
+let typingIndicator; // Sarà un elemento creato dinamicamente
+
+
 // Inizializza la configurazione Gemini AI
 function initializeGeminiAPI() {
     console.log("AI Assistant: Initializing Gemini API...");
@@ -361,7 +367,7 @@ const availableFunctions = {
         const todaysBookings = prenotazioniData.filter(b => b.date === today).length;
         
         // Chiamata interna sicura, non diretta all'API
-        const availableSlotsResult = await this.getAvailableSlots(); 
+        const availableSlotsResult = await availableFunctions.getAvailableSlots({}); // Passa oggetto vuoto se necessario
         const availableSlotsCount = Array.isArray(availableSlotsResult) ? availableSlotsResult.length : 0;
 
         return {
@@ -379,9 +385,7 @@ async function callGeminiAIWithSystemAccess(prompt, history = []) {
     }
      if (!firebaseReady || !window.firebaseWrapper || !window.firebaseWrapper.isInitialized) {
         console.warn("AI Assistant: callGeminiAIWithSystemAccess - Firebase non pronto. L'AI potrebbe non avere dati aggiornati.");
-        // Non lanciare errore qui, l'AI potrebbe comunque rispondere a domande generiche
     }
-
 
     const now = Date.now();
     if (now - lastApiCallTime < MIN_API_CALL_INTERVAL) {
@@ -419,7 +423,6 @@ Se l'utente chiede di fare qualcosa per cui non ha i permessi (es. un non-admin 
     requestContents.push({ role: "user", parts: [{ text: prompt }] });
     
     console.log("AI Assistant: Invio richiesta a Gemini API. Prompt:", prompt);
-    // console.log("AI Assistant: Request Contents to Gemini:", JSON.stringify(requestContents, null, 2));
 
     try {
         const response = await fetch(geminiAPI.endpoint, {
@@ -450,7 +453,6 @@ Se l'utente chiede di fare qualcosa per cui non ha i permessi (es. un non-admin 
         }
 
         const data = await response.json();
-        // console.log("AI Assistant: Risposta da Gemini:", JSON.stringify(data, null, 2));
 
         if (!data.candidates || !data.candidates[0] || !data.candidates[0].content || !data.candidates[0].content.parts) {
             console.error("AI Assistant: Risposta API Gemini non valida o vuota:", data);
@@ -539,8 +541,7 @@ async function prepareSystemContext() {
     };
     
     try {
-        // Chiamata asincrona per ottenere gli slot disponibili, usando la funzione interna
-        const availableSlotsResult = await availableFunctions.getAvailableSlots({}); // Passa oggetto vuoto per default
+        const availableSlotsResult = await availableFunctions.getAvailableSlots({}); 
         context.availableSlotsCount = Array.isArray(availableSlotsResult) ? availableSlotsResult.length : 0;
         
         const today = new Date().toISOString().split('T')[0];
@@ -551,20 +552,43 @@ async function prepareSystemContext() {
     return context;
 }
 
-// (Le funzioni UI e di gestione dei messaggi come sendMessage, showUserMessage, showBotMessage, ecc. rimangono)
 // Modifica sendMessage per usare solo Gemini AI
 function sendMessage() {
-    console.log("AI Assistant: sendMessage called.");
-    const input = document.querySelector('.ai-assistant-input');
-    const suggestionsContainer = document.querySelector('.ai-assistant-suggestions');
-    const message = input.value.trim();
-    if (!message) return;
+    // Utilizza l'inputField globale referenziato in createAssistantUI
+    if (!inputField) {
+        console.error("AI Assistant: sendMessage - inputField is null. Cannot send message.");
+        return;
+    }
+    const message = inputField.value.trim();
+    console.log("AI Assistant: sendMessage called. Message: '", message, "'");
 
+    if (!message) {
+        console.log('AI Assistant: Message is empty, returning.');
+        return;
+    }
+
+    console.log("AI Assistant: sendMessage - Before showUserMessage.");
     showUserMessage(message);
-    input.value = '';
-    if (suggestionsContainer) suggestionsContainer.innerHTML = '';
+    console.log("AI Assistant: sendMessage - After showUserMessage.");
+
+    console.log("AI Assistant: sendMessage - Before inputField.value = ''.");
+    inputField.value = '';
+    console.log("AI Assistant: sendMessage - After inputField.value = ''.");
+
+    // Utilizza suggestionsContainer globale referenziato in createAssistantUI
+    if (suggestionsContainer) {
+        console.log("AI Assistant: sendMessage - Before suggestionsContainer.innerHTML = ''.");
+        suggestionsContainer.innerHTML = '';
+        console.log("AI Assistant: sendMessage - After suggestionsContainer.innerHTML = ''.");
+    } else {
+        console.warn("AI Assistant: sendMessage - suggestionsContainer is null.");
+    }
+
+    console.log("AI Assistant: sendMessage - Before showTypingIndicator.");
     showTypingIndicator();
+    console.log("AI Assistant: sendMessage - After showTypingIndicator.");
     
+    console.log("AI Assistant: sendMessage - About to callGeminiAIWithSystemAccess.");
     (async () => {
         try {
             if (!isGeminiReady) {
@@ -576,27 +600,18 @@ function sendMessage() {
             removeTypingIndicator();
             showBotMessage(response); 
 
-            // const contextualSuggestions = generateContextualSuggestions(message, response);
-            // if (contextualSuggestions.length > 0) {
-            //     showSuggestions(contextualSuggestions);
-            // }
         } catch (error) {
             removeTypingIndicator();
             console.error("AI Assistant: sendMessage - Errore nell'elaborazione del messaggio con Gemini:", error);
             showBotMessage(`❌ Mi dispiace, si è verificato un errore: ${error.message}\n\nPuoi riprovare o riformulare la tua richiesta.`);
-            // showSuggestions(["Riprova", "Mostra disponibilità", "Le mie prenotazioni", "Aiuto"]);
         }
     })();
 }
 
-// QUESTA FUNZIONE POTREBBE AVER BISOGNO DI REVISIONE O ESSERE RIMOSSA/SEMPLIFICATA
 function generateContextualSuggestions(lastMessage, botResponse) {
-    // ... (implementazione invariata per ora)
     const lowerMessage = lastMessage.toLowerCase();
     const lowerResponse = botResponse ? botResponse.toLowerCase() : "";
-    
     let suggestions = [];
-    
     if (lowerResponse.includes('disponibilità trovate') || lowerResponse.includes('📅')) {
         suggestions = [ "Prenota il primo slot disponibile", "Mostra solo il weekend", "Disponibilità della prossima settimana", "Filtra per orario pomeridiano" ];
     } else if (lowerResponse.includes('prenotazione confermata') || lowerResponse.includes('🎉')) {
@@ -608,7 +623,6 @@ function generateContextualSuggestions(lastMessage, botResponse) {
     } else {
         suggestions = [ "Mostra disponibilità", "Le mie prenotazioni", "Info sui servizi", "Come prenoto?" ];
     }
-    
     suggestions = suggestions.filter(sugg => !lowerMessage.includes(sugg.toLowerCase()) && !lowerResponse.includes(sugg.toLowerCase()));
     return suggestions.slice(0, 4);
 }
@@ -617,9 +631,8 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log("AI Assistant: DOMContentLoaded event fired."); 
     initializeGeminiAPI();
     
-    let chatbox, assistantButton, closeButton, messagesContainer, inputField, sendButton, suggestionsContainer;
-    let confirmationCallback = null; // Non più usato con function calling?
-    let typingIndicator;
+    // Le variabili globali dell'UI (chatbox, assistantButton, ecc.) sono definite all'inizio del file.
+    // typingIndicator è anche definito globalmente.
 
     function createAssistantUI() {
         console.log("AI Assistant: Attempting to create UI..."); 
@@ -642,34 +655,83 @@ document.addEventListener('DOMContentLoaded', () => {
         document.body.insertAdjacentHTML('beforeend', assistantHTML);
         console.log("AI Assistant: UI HTML injected."); 
 
+        // Assegna gli elementi DOM alle variabili globali
         chatbox = document.querySelector('.ai-assistant-chatbox');
+        console.log("AI Assistant: chatbox element:", chatbox);
         assistantButton = document.querySelector('.ai-assistant-button');
+        console.log("AI Assistant: assistantButton element:", assistantButton);
         closeButton = document.querySelector('.ai-assistant-close');
+        console.log("AI Assistant: closeButton element:", closeButton);
         messagesContainer = document.querySelector('.ai-assistant-messages');
+        console.log("AI Assistant: messagesContainer element:", messagesContainer);
         inputField = document.querySelector('.ai-assistant-input');
+        console.log("AI Assistant: inputField element:", inputField);
         sendButton = document.querySelector('.ai-assistant-send');
+        console.log("AI Assistant: sendButton element:", sendButton);
         suggestionsContainer = document.querySelector('.ai-assistant-suggestions');
-        typingIndicator = document.createElement('div'); // Creato ma non aggiunto/usato attivamente qui
-        typingIndicator.className = 'ai-assistant-typing-indicator';
-        typingIndicator.innerHTML = '<span></span><span></span><span></span>';
-
-
-        if (!chatbox || !assistantButton || !closeButton || !messagesContainer || !inputField || !sendButton) {
-            console.error("AI Assistant: Critical UI elements not found after injection.");
-            return; 
+        console.log("AI Assistant: suggestionsContainer element:", suggestionsContainer);
+        
+        // Creazione dinamica di typingIndicator (se non già fatto o se si preferisce così)
+        if (!typingIndicator) { // Solo se non è già stato creato
+            typingIndicator = document.createElement('div'); 
+            typingIndicator.className = 'ai-assistant-typing-indicator ai-assistant-message bot'; // Stile come messaggio bot
+            typingIndicator.innerHTML = '<span></span><span></span><span></span>';
+            typingIndicator.style.display = 'none'; // Inizialmente nascosto
+            if(messagesContainer) messagesContainer.appendChild(typingIndicator); // Aggiungi al contenitore dei messaggi
+            console.log("AI Assistant: typingIndicator element created:", typingIndicator);
         }
-        console.log("AI Assistant: UI elements successfully referenced.");
 
-        assistantButton.addEventListener('click', toggleChatbox);
-        closeButton.addEventListener('click', toggleChatbox);
-        sendButton.addEventListener('click', sendMessage);
-        inputField.addEventListener('keypress', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } });
+
+        if (!chatbox || !assistantButton || !closeButton || !messagesContainer || !inputField || !sendButton || !suggestionsContainer) {
+            console.error("AI Assistant: Uno o più elementi UI critici non trovati dopo l'iniezione. L'impostazione degli event listener potrebbe fallire.");
+            // Non ritornare qui, per permettere ai listener che trovano i loro elementi di essere comunque aggiunti.
+        } else {
+            console.log("AI Assistant: Tutti gli elementi UI critici referenziati con successo.");
+        }
+
+        // Aggiunge gli event listener, controllando se l'elemento esiste
+        if (assistantButton) {
+            assistantButton.addEventListener('click', toggleChatbox);
+        } else {
+            console.error("AI Assistant: assistantButton non trovato, impossibile aggiungere event listener.");
+        }
+
+        if (closeButton) {
+            closeButton.addEventListener('click', toggleChatbox);
+        } else {
+            console.error("AI Assistant: closeButton non trovato, impossibile aggiungere event listener.");
+        }
+        
+        if (sendButton) {
+            sendButton.addEventListener('click', () => {
+                console.log("AI Assistant: Send button clicked via event listener.");
+                sendMessage();
+            });
+        } else {
+            console.error("AI Assistant: sendButton non trovato, impossibile aggiungere event listener 'click'.");
+        }
+        
+        if (inputField) {
+            inputField.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    console.log("AI Assistant: Enter key pressed in input field via event listener.");
+                    sendMessage();
+                }
+            });
+        } else {
+            console.error("AI Assistant: inputField non trovato, impossibile aggiungere event listener 'keypress'.");
+        }
+
         if (suggestionsContainer) {
             suggestionsContainer.addEventListener('click', (e) => {
                 if (e.target.classList.contains('ai-assistant-suggestion')) {
-                    inputField.value = e.target.textContent; sendMessage();
+                    if(inputField) inputField.value = e.target.textContent; 
+                    sendMessage();
                 }
             });
+        }  else {
+            console.warn("AI Assistant: suggestionsContainer non trovato.");
         }
 
         if (window.firebaseWrapper && window.firebaseWrapper.isInitialized) {
@@ -693,7 +755,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         const isActive = chatbox.classList.toggle('active');
         assistantButton.classList.toggle('active', isActive);
-        assistantButton.style.display = isActive ? 'none' : 'flex'; // Nasconde il pulsante quando la chat è attiva
+        assistantButton.style.display = isActive ? 'none' : 'flex'; 
         if (isActive && messagesContainer && messagesContainer.children.length === 0) {
             updateChatContext();
         }
@@ -800,15 +862,14 @@ function loadDatabaseData() {
 }
 
 function updateChatContext() {
-    const chatbox = document.querySelector('.ai-assistant-chatbox');
-    const messagesContainer = document.querySelector('.ai-assistant-messages');
-    // const suggestionsContainer = document.querySelector('.ai-assistant-suggestions'); // Già definito in createAssistantUI
+    // Riferimenti agli elementi DOM (assicurati che siano accessibili qui)
+    const currentChatbox = document.querySelector('.ai-assistant-chatbox');
+    const currentMessagesContainer = document.querySelector('.ai-assistant-messages');
 
-    if (!chatbox || !chatbox.classList.contains('active')) return;
-    if (messagesContainer && messagesContainer.childElementCount === 0) { // Solo se non ci sono messaggi
+    if (!currentChatbox || !currentChatbox.classList.contains('active')) return;
+    if (currentMessagesContainer && currentMessagesContainer.childElementCount === 0) { 
         showBotMessage(getBotWelcomeMessage());
     }
-    // showSuggestions(getInitialSuggestions()); // I suggerimenti iniziali potrebbero essere gestiti dall'AI
 }
 
 function getBotWelcomeMessage() {
@@ -819,78 +880,89 @@ function getBotWelcomeMessage() {
     return `${saluto}! Sono Miller AI. Chiedimi informazioni o aiuto per prenotare.`;
 }
 
-function getInitialSuggestions() { // Questa funzione potrebbe diventare meno rilevante
+function getInitialSuggestions() { 
     if (isAdmin) return ["Mostra prenotazioni di oggi", "Aggiungi disponibilità", "Statistiche"];
     if (currentUser) return ["Le mie prenotazioni", "Mostra disponibilità", "Prenota per domani"];
     return ["Mostra disponibilità", "Come prenoto?", "Info sui servizi"];
 }
 
-// Funzioni UI (showUserMessage, showBotMessage, showTypingIndicator, ecc.) da definire qui
-// Queste funzioni manipolano .ai-assistant-messages, .ai-assistant-suggestions, ecc.
-// Assicurarsi che siano definite globalmente o passate/accessibili dove necessario.
-
 function showUserMessage(message) {
-    const messagesContainer = document.querySelector('.ai-assistant-messages');
-    if (!messagesContainer) return;
+    // Assicurati che messagesContainer sia accessibile (potrebbe essere necessario passarlo o re-query)
+    const currentMessagesContainer = document.querySelector('.ai-assistant-messages');
+    if (!currentMessagesContainer) {
+        console.error("AI Assistant: showUserMessage - messagesContainer non trovato.");
+        return;
+    }
     const messageElement = document.createElement('div');
     messageElement.classList.add('ai-assistant-message', 'user');
     messageElement.textContent = message;
-    messagesContainer.appendChild(messageElement);
-    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    currentMessagesContainer.appendChild(messageElement);
+    currentMessagesContainer.scrollTop = currentMessagesContainer.scrollHeight;
 }
 
 function showBotMessage(message) {
-    const messagesContainer = document.querySelector('.ai-assistant-messages');
-    if (!messagesContainer) return;
+    const currentMessagesContainer = document.querySelector('.ai-assistant-messages');
+     if (!currentMessagesContainer) {
+        console.error("AI Assistant: showBotMessage - messagesContainer non trovato.");
+        return;
+    }
     const messageElement = document.createElement('div');
     messageElement.classList.add('ai-assistant-message', 'bot');
-    // Semplice markdown per grassetto e corsivo (da estendere se necessario)
     message = message.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\*(.*?)\*/g, '<em>$1</em>');
-    messageElement.innerHTML = message; // Usa innerHTML per formattazione
-    messagesContainer.appendChild(messageElement);
-    messagesContainer.scrollTop = messagesContainer.scrollHeight;
-    // speakMessage(messageElement.textContent); // Rimuovi textContent se vuoi che legga il markdown formattato
+    messageElement.innerHTML = message; 
+    currentMessagesContainer.appendChild(messageElement);
+    currentMessagesContainer.scrollTop = currentMessagesContainer.scrollHeight;
 }
 
 function showTypingIndicator() {
-    const messagesContainer = document.querySelector('.ai-assistant-messages');
-    const typingIndicator = document.querySelector('.ai-assistant-typing-indicator') || document.createElement('div');
-    if (!document.querySelector('.ai-assistant-typing-indicator')) {
-        typingIndicator.className = 'ai-assistant-typing-indicator ai-assistant-message bot'; // Applica stili messaggio bot
-        typingIndicator.innerHTML = '<span></span><span></span><span></span>';
-        messagesContainer.appendChild(typingIndicator);
+    const currentMessagesContainer = document.querySelector('.ai-assistant-messages');
+    if (!currentMessagesContainer) {
+        console.error("AI Assistant: showTypingIndicator - messagesContainer non trovato.");
+        return;
     }
-    typingIndicator.style.display = 'flex'; // Assicurati che sia visibile
-    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    // Usa la variabile globale typingIndicator, assicurandoti che sia stata creata in createAssistantUI
+    if (!typingIndicator) {
+        console.error("AI Assistant: showTypingIndicator - typingIndicator non inizializzato.");
+        // Potresti ricrearlo qui se necessario, ma è meglio che sia gestito centralmente
+        typingIndicator = document.createElement('div'); 
+        typingIndicator.className = 'ai-assistant-typing-indicator ai-assistant-message bot';
+        typingIndicator.innerHTML = '<span></span><span></span><span></span>';
+        currentMessagesContainer.appendChild(typingIndicator); // Aggiungilo se ricreato
+    }
+    typingIndicator.style.display = 'flex'; 
+    currentMessagesContainer.scrollTop = currentMessagesContainer.scrollHeight;
 }
 
 function removeTypingIndicator() {
-    const typingIndicator = document.querySelector('.ai-assistant-typing-indicator');
     if (typingIndicator) {
-        typingIndicator.style.display = 'none'; // Nascondi invece di rimuovere per riutilizzarlo
+        typingIndicator.style.display = 'none'; 
+    } else {
+         console.warn("AI Assistant: removeTypingIndicator - typingIndicator non trovato.");
     }
 }
 
 function showSuggestions(suggestionsArray) {
-    const suggestionsContainer = document.querySelector('.ai-assistant-suggestions');
-    if (!suggestionsContainer) return;
-    suggestionsContainer.innerHTML = ''; // Pulisci vecchi suggerimenti
+    const currentSuggestionsContainer = document.querySelector('.ai-assistant-suggestions');
+    if (!currentSuggestionsContainer) {
+        console.warn("AI Assistant: showSuggestions - suggestionsContainer non trovato.");
+        return;
+    }
+    currentSuggestionsContainer.innerHTML = ''; 
     if (suggestionsArray && suggestionsArray.length > 0) {
         suggestionsArray.forEach(suggText => {
             const button = document.createElement('button');
             button.className = 'ai-assistant-suggestion';
             button.textContent = suggText;
-            suggestionsContainer.appendChild(button);
+            currentSuggestionsContainer.appendChild(button);
         });
-        suggestionsContainer.style.display = 'flex'; // Mostra il contenitore
+        currentSuggestionsContainer.style.display = 'flex'; 
     } else {
-        suggestionsContainer.style.display = 'none'; // Nascondi se non ci sono suggerimenti
+        currentSuggestionsContainer.style.display = 'none'; 
     }
 }
 
 function speakMessage(text) {
     if ('speechSynthesis' in window) {
-        // Pulisci il testo da Markdown per una lettura più naturale
         const cleanedText = text.replace(/\*\*(.*?)\*\*/g, '$1').replace(/\*(.*?)\*/g, '$1');
         const speech = new SpeechSynthesisUtterance(cleanedText);
         speech.lang = 'it-IT';
