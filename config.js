@@ -12,13 +12,12 @@ const firebaseConfig = {
     appId: "1:939095326009:web:9447f09ea845600ac7bce8"
 };
 
-// Configurazione Gemini AI ottimizzata per l'assistente avanzato
+// Configurazione Gemini AI con sintassi moderna
 const geminiConfig = {
     apiKey: "AIzaSyBcaW9wnXS8QXf7fH3eN_TK-2mNqO8pLrE",
-    model: "gemini-1.5-flash",
-    endpoint: "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
-    temperature: 0.9, // Più creatività per risposte naturali
-    maxOutputTokens: 1000, // Più spazio per risposte dettagliate
+    model: "gemini-2.0-flash", // Modello aggiornato
+    temperature: 0.9,
+    maxOutputTokens: 1000,
     topP: 0.9,
     topK: 40
 };
