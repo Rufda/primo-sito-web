@@ -792,31 +792,24 @@
         <div class="loader"></div>
     </div>
     
+    <!-- Script Firebase SDK compat -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-compat-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-compat-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-compat-database.js"></script>
+    
     <script src="config.js"></script>
     <script src="firebase-wrapper.js"></script>
-    <script src="ai_assistant.js"></script> <!-- Assicura che sia lo script corretto e in ordine -->
-    <script type="module" src="prenotazioni_admin.js"></script>
+    <script src="ai_assistant.js"></script>
     <script>
-        // Importazione dei moduli Firebase
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.2.0/firebase-app.js";
-        import { getDatabase, ref, onValue, update, remove, get } from "https://www.gstatic.com/firebasejs/11.2.0/firebase-database.js";
-        import { getAuth, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.2.0/firebase-auth.js";
+        // Variabili globali
+        let allBookings = [];
+        let filteredBookings = [];
+        let currentPage = 1;
+        const bookingsPerPage = 10;
+        let currentBookingId = null;
         
-        // Configurazione Firebase
-        const firebaseConfig = {
-            apiKey: "AIzaSyC6nZVPaWXtgjWOP8veInKk6Omkp5vEXbI",
-            authDomain: "primo-sito-web1.firebaseapp.com",
-            databaseURL: "https://primo-sito-web1-default-rtdb.firebaseio.com",
-            projectId: "primo-sito-web1",
-            storageBucket: "primo-sito-web1.firebasestorage.app",
-            messagingSenderId: "939095326009",
-            appId: "1:939095326009:web:9447f09ea845600ac7bce8"
-        };
-        
-        // Inizializzazione Firebase
-        const app = initializeApp(firebaseConfig);
-        const db = getDatabase(app);
-        const auth = getAuth(app);
+        // UID degli utenti autorizzati
+        const autorizzatiUIDs = ["JwD4eX22goU6uOmo4nLzQf7hfDe2", "5oZf8f0egmhawXKWsBUuBeSflLc2"];
         
         // Elementi DOM
         const authContainer = document.getElementById('authContainer');
@@ -846,39 +839,42 @@
         const confirmedBookingsEl = document.getElementById('confirmedBookings');
         const todayBookingsEl = document.getElementById('todayBookings');
         
-        // UID degli utenti autorizzati (sostituire con gli UID reali)
-        const autorizzatiUIDs = ["JwD4eX22goU6uOmo4nLzQf7hfDe2", "5oZf8f0egmhawXKWsBUuBeSflLc2"];
-        
-        // Variabili globali
-        let allBookings = [];
-        let filteredBookings = [];
-        let currentPage = 1;
-        const bookingsPerPage = 10;
-        let currentBookingId = null;
-        
-        // Controllo autenticazione
-        onAuthStateChanged(auth, (user) => {
-            if (user && autorizzatiUIDs.includes(user.uid)) {
-                // Utente autorizzato
-                authContainer.style.display = 'none';
-                mainContent.style.display = 'block';
-                loadBookings();
-            } else {
-                // Non autenticato o non autorizzato
-                authContainer.style.display = 'block';
-                mainContent.style.display = 'none';
-            }
+        // Inizializzazione quando Firebase è pronto
+        document.addEventListener('firebase-ready', function(event) {
+            console.log('Firebase è pronto, inizializzazione admin panel...');
+            initializeAdminPanel();
         });
         
-        // Event listeners
-        loginBtn.addEventListener('click', handleLogin);
-        backToCalendarBtn.addEventListener('click', () => window.location.href = 'vDisponibilita.html');
-        applyFiltersBtn.addEventListener('click', applyFilters);
-        clearFiltersBtn.addEventListener('click', clearFilters);
-        closeModal.addEventListener('click', () => bookingModal.style.display = 'none');
-        confirmBookingEditBtn.addEventListener('click', saveBookingChanges);
-        cancelBookingEditBtn.addEventListener('click', () => bookingModal.style.display = 'none');
-        exportBookingsBtn.addEventListener('click', exportBookingsToCSV);
+        // Se Firebase è già inizializzato, procedi direttamente
+        if (window.firebaseWrapper && window.firebaseWrapper.isInitialized) {
+            initializeAdminPanel();
+        }
+        
+        function initializeAdminPanel() {
+            // Controllo autenticazione
+            firebaseWrapper.onAuthStateChanged((user) => {
+                if (user && autorizzatiUIDs.includes(user.uid)) {
+                    // Utente autorizzato
+                    authContainer.style.display = 'none';
+                    mainContent.style.display = 'block';
+                    loadBookings();
+                } else {
+                    // Non autenticato o non autorizzato
+                    authContainer.style.display = 'block';
+                    mainContent.style.display = 'none';
+                }
+            });
+            
+            // Event listeners
+            loginBtn.addEventListener('click', handleLogin);
+            backToCalendarBtn.addEventListener('click', () => window.location.href = 'vDisponibilita.html');
+            applyFiltersBtn.addEventListener('click', applyFilters);
+            clearFiltersBtn.addEventListener('click', clearFilters);
+            closeModal.addEventListener('click', () => bookingModal.style.display = 'none');
+            confirmBookingEditBtn.addEventListener('click', saveBookingChanges);
+            cancelBookingEditBtn.addEventListener('click', () => bookingModal.style.display = 'none');
+            exportBookingsBtn.addEventListener('click', exportBookingsToCSV);
+        }
         
         // Funzione per il login
         function handleLogin() {
@@ -892,7 +888,7 @@
             
             showLoading(true);
             
-            signInWithEmailAndPassword(auth, email, password)
+            firebaseWrapper.signInWithEmailAndPassword(email, password)
                 .catch((error) => {
                     showLoading(false);
                     let errorMessage = 'Errore di autenticazione';
@@ -933,15 +929,14 @@
         function loadBookings() {
             showLoading(true);
             
-            const prenotazioniRef = ref(db, "prenotazioni");
-            onValue(prenotazioniRef, (snapshot) => {
+            const prenotazioniRef = firebaseWrapper.ref("prenotazioni");
+            firebaseWrapper.onValue(prenotazioniRef, (snapshot) => {
                 allBookings = [];
                 
                 snapshot.forEach(child => {
                     const booking = child.val();
                     booking.id = child.key;
                     
-                    // Aggiungiamo uno stato se non presente
                     if (!booking.status) {
                         booking.status = 'pending';
                     }
@@ -967,23 +962,18 @@
         function updateStatistics() {
             totalBookingsEl.textContent = allBookings.length;
             
-            // Conta le prenotazioni in attesa
             const pendingCount = allBookings.filter(booking => booking.status === 'pending').length;
             pendingBookingsEl.textContent = pendingCount;
             
-            // Conta le prenotazioni confermate
             const confirmedCount = allBookings.filter(booking => booking.status === 'confirmed').length;
             confirmedBookingsEl.textContent = confirmedCount;
             
-            // Conta le prenotazioni di oggi
             const today = new Date().toISOString().split('T')[0];
             const todayCount = allBookings.filter(booking => {
-                // Estrai la data dalla disponibilitaID o da una data esplicita se presente
                 let bookingDate;
                 if (booking.data) {
                     bookingDate = booking.data;
                 } else if (booking.disponibilitaID) {
-                    // Se il formato è DD/MM/YYYY
                     if (booking.disponibilitaID.includes('/')) {
                         const parts = booking.disponibilitaID.split('/');
                         bookingDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
@@ -1306,24 +1296,19 @@
                 nome: document.getElementById('booking-name').value,
                 email: document.getElementById('booking-email').value,
                 telefono: document.getElementById('booking-phone').value,
-                // Non aggiorniamo la data perché potrebbe essere in formato diverso nel DB
-                // Non aggiorniamo l'orario per lo stesso motivo
-                // Non aggiorniamo la descrizione/servizio per lo stesso motivo
                 status: document.getElementById('booking-status').value,
                 note: document.getElementById('booking-notes').value
             };
             
-            // Aggiorna il database
             showLoading(true);
-            update(ref(db, `prenotazioni/${currentBookingId}`), updatedBooking)
+            const bookingRef = firebaseWrapper.ref(`prenotazioni/${currentBookingId}`);
+            firebaseWrapper.update(bookingRef, updatedBooking)
                 .then(() => {
                     showToast('Prenotazione aggiornata con successo');
                     bookingModal.classList.remove('open');
                     setTimeout(() => {
                         bookingModal.style.display = 'none';
                     }, 300);
-                    
-                    // La funzione loadBookings verrà chiamata automaticamente tramite onValue
                 })
                 .catch(error => {
                     console.error('Errore aggiornamento prenotazione:', error);
@@ -1337,10 +1322,10 @@
         // Conferma una prenotazione
         function confirmBooking(bookingId) {
             showLoading(true);
-            update(ref(db, `prenotazioni/${bookingId}`), { status: 'confirmed' })
+            const bookingRef = firebaseWrapper.ref(`prenotazioni/${bookingId}`);
+            firebaseWrapper.update(bookingRef, { status: 'confirmed' })
                 .then(() => {
                     showToast('Prenotazione confermata con successo');
-                    // La funzione loadBookings verrà chiamata automaticamente tramite onValue
                 })
                 .catch(error => {
                     console.error('Errore conferma prenotazione:', error);
@@ -1358,10 +1343,10 @@
             }
             
             showLoading(true);
-            remove(ref(db, `prenotazioni/${bookingId}`))
+            const bookingRef = firebaseWrapper.ref(`prenotazioni/${bookingId}`);
+            firebaseWrapper.remove(bookingRef)
                 .then(() => {
                     showToast('Prenotazione eliminata con successo');
-                    // La funzione loadBookings verrà chiamata automaticamente tramite onValue
                 })
                 .catch(error => {
                     console.error('Errore eliminazione prenotazione:', error);
@@ -1392,7 +1377,7 @@
                 
                 // Estrai contatti
                 const email = booking.email || '';
-                const phone = booking.telefono || booking.phone || '';
+                const phone = booking.telefono || '';
                 
                 // Estrai data
                 let date = '';
