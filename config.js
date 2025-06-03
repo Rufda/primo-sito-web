@@ -26,6 +26,9 @@ if (typeof geminiConfig === 'undefined') {
         topP: 0.9,
         topK: 40
     };
+    // Endpoint per le chiamate a Gemini API
+    geminiConfig.endpoint =
+        `https://generativelanguage.googleapis.com/v1beta/models/${geminiConfig.model}:generateContent`;
 }
 
 // Controllo per evitare ridichiarazione di systemConfig
