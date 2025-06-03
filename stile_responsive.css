@@ -1,24 +1,10 @@
 /* Stile responsive per tutte le pagine del sito */
-:root {
-    --primary-color: #ff69b4;
-    --primary-light: #ffb6c1;
-    --primary-dark: #e6007e;
-    --secondary-color: #fff;
-    --background-light: rgba(255, 255, 255, 0.9);
-    --background-medium: rgba(255,192,203,0.3);
-    --shadow-color: rgba(0, 0, 0, 0.2);
-    --text-dark: #333;
-    --text-light: #fff;
-    --border-radius: 12px;
-    --transition-speed: 0.3s;
-}
 
 /* Regole base per dispositivi mobili (mobile-first approach) */
 html, body {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
-    font-family: Arial, sans-serif;
 }
 
 body {
