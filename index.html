@@ -7,30 +7,13 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
+    <link rel="stylesheet" href="global.css">
     <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="stile_responsive.css"> <!-- Aggiunto stile_responsive.css -->
+    <link rel="stylesheet" href="stile_responsive.css">
     <link rel="stylesheet" href="ai_assistant.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <style>
-        :root {
-            --primary-color: #ff69b4;
-            --primary-light: #ffb6c1;
-            --primary-dark: #e6007e;
-            --secondary-color: #fff;
-            --background-light: rgba(255, 255, 255, 0.9);
-            --background-medium: rgba(255,192,203,0.3);
-            --shadow-color: rgba(0, 0, 0, 0.2);
-            --text-dark: #333;
-            --text-light: #fff;
-            --border-radius: 12px;
-            --transition-speed: 0.3s;
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        /* Variabili e regole generali spostate in global.css */
 
         body {
             background: none;
@@ -47,7 +30,7 @@
         
         body::before {
             content: "";
-            background: url("foto2.png") center center / cover no-repeat;
+            background: url("foto2.PNG") center center / cover no-repeat;
             position: fixed;
             top: 0;
             left: 0;
@@ -411,7 +394,6 @@
     <script src="config.js"></script>
     <script src="firebase-wrapper.js"></script>
     <script src="ai_assistant.js"></script> <!-- Assicura che sia lo script corretto e in ordine -->
-    <script type="module" src="auth.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             // Riferimenti agli elementi del form di login
