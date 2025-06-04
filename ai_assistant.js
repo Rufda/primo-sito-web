@@ -422,9 +422,9 @@ Se l'utente chiede di fare qualcosa per cui non ha i permessi (es. un non-admin 
     // console.log("AI Assistant: Request Contents to Gemini:", JSON.stringify(requestContents, null, 2));
 
     try {
-        const response = await fetch(geminiAPI.endpoint, {
+        const response = await fetch(`${geminiAPI.endpoint}?key=${geminiAPI.apiKey}`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'x-goog-api-key': geminiAPI.apiKey },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 contents: requestContents,
                 tools: tools,
@@ -446,7 +446,13 @@ Se l'utente chiede di fare qualcosa per cui non ha i permessi (es. un non-admin 
         if (!response.ok) {
             const errorBody = await response.text();
             console.error("AI Assistant: Errore API Gemini:", response.status, errorBody);
-            throw new Error(`Errore API Gemini: ${response.status} - ${errorBody}`);
+            let friendly = `Errore API Gemini: ${response.status}`;
+            if (errorBody && errorBody.includes('API key not valid')) {
+                friendly = 'Chiave API Gemini non valida o mancante. Verifica la configurazione.';
+            } else if (errorBody) {
+                friendly += ` - ${errorBody}`;
+            }
+            throw new Error(friendly);
         }
 
         const data = await response.json();
