@@ -617,7 +617,7 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log("AI Assistant: DOMContentLoaded event fired."); 
     initializeGeminiAPI();
     
-    let chatbox, assistantButton, closeButton, messagesContainer, inputField, sendButton, suggestionsContainer;
+    let chatbox, assistantButton, closeButton, messagesContainer, inputField, sendButton, suggestionsContainer, overlay;
     let confirmationCallback = null; // Non più usato con function calling?
     let typingIndicator;
 
@@ -627,6 +627,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (existingContainer) existingContainer.remove();
         
         const assistantHTML = `
+            <div class="ai-assistant-overlay"></div>
             <div class="ai-assistant-container"> <div class="ai-assistant-button">🤖</div>
                 <div class="ai-assistant-chatbox">
                     <div class="ai-assistant-header">
@@ -642,6 +643,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.body.insertAdjacentHTML('beforeend', assistantHTML);
         console.log("AI Assistant: UI HTML injected."); 
 
+        overlay = document.querySelector('.ai-assistant-overlay');
         chatbox = document.querySelector('.ai-assistant-chatbox');
         assistantButton = document.querySelector('.ai-assistant-button');
         closeButton = document.querySelector('.ai-assistant-close');
@@ -662,6 +664,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         assistantButton.addEventListener('click', toggleChatbox);
         closeButton.addEventListener('click', toggleChatbox);
+        if (overlay) overlay.addEventListener('click', toggleChatbox);
         sendButton.addEventListener('click', sendMessage);
         inputField.addEventListener('keypress', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } });
         if (suggestionsContainer) {
@@ -693,6 +696,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         const isActive = chatbox.classList.toggle('active');
         assistantButton.classList.toggle('active', isActive);
+        if (overlay) overlay.classList.toggle('active', isActive);
         assistantButton.style.display = isActive ? 'none' : 'flex'; // Nasconde il pulsante quando la chat è attiva
         if (isActive && messagesContainer && messagesContainer.children.length === 0) {
             updateChatContext();
@@ -845,11 +849,21 @@ function showBotMessage(message) {
     const messageElement = document.createElement('div');
     messageElement.classList.add('ai-assistant-message', 'bot');
     // Semplice markdown per grassetto e corsivo (da estendere se necessario)
-    message = message.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\*(.*?)\*/g, '<em>$1</em>');
-    messageElement.innerHTML = message; // Usa innerHTML per formattazione
+    const formatted = message.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\*(.*?)\*/g, '<em>$1</em>');
+    const plain = message.replace(/\*\*(.*?)\*\*/g, '$1').replace(/\*(.*?)\*/g, '$1');
+    messageElement.textContent = '';
     messagesContainer.appendChild(messageElement);
-    messagesContainer.scrollTop = messagesContainer.scrollHeight;
-    // speakMessage(messageElement.textContent); // Rimuovi textContent se vuoi che legga il markdown formattato
+    let index = 0;
+    const typeInterval = setInterval(() => {
+        messageElement.textContent = plain.slice(0, index);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        index++;
+        if (index > plain.length) {
+            clearInterval(typeInterval);
+            messageElement.innerHTML = formatted;
+            // speakMessage(messageElement.textContent); // Rimuovi textContent se vuoi che legga il markdown formattato
+        }
+    }, 20);
 }
 
 function showTypingIndicator() {

@@ -15,6 +15,26 @@
     --ai-gradient: linear-gradient(135deg, var(--ai-primary) 0%, var(--ai-secondary) 50%, var(--ai-accent) 100%);
 }
 
+/* Sfondo sfocato quando la chat è aperta */
+.ai-assistant-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    backdrop-filter: blur(4px);
+    background: rgba(255, 255, 255, 0.4);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease;
+    z-index: 999;
+}
+
+.ai-assistant-overlay.active {
+    opacity: 1;
+    visibility: visible;
+}
+
 .ai-assistant-container {
     position: fixed;
     bottom: 24px;
@@ -227,7 +247,8 @@
 }
 
 /* Indicatore di scrittura */
-.ai-assistant-typing {
+.ai-assistant-typing,
+.ai-assistant-typing-indicator {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -240,7 +261,8 @@
     box-shadow: 0 2px 8px var(--ai-shadow);
 }
 
-.ai-assistant-typing-dot {
+.ai-assistant-typing-dot,
+.ai-assistant-typing-indicator span {
     width: 8px;
     height: 8px;
     background: var(--ai-primary);
@@ -248,8 +270,10 @@
     animation: ai-typing-bounce 1.4s infinite ease-in-out;
 }
 
-.ai-assistant-typing-dot:nth-child(1) { animation-delay: -0.32s; }
-.ai-assistant-typing-dot:nth-child(2) { animation-delay: -0.16s; }
+.ai-assistant-typing-dot:nth-child(1),
+.ai-assistant-typing-indicator span:nth-child(1) { animation-delay: -0.32s; }
+.ai-assistant-typing-dot:nth-child(2),
+.ai-assistant-typing-indicator span:nth-child(2) { animation-delay: -0.16s; }
 
 @keyframes ai-typing-bounce {
     0%, 80%, 100% { 
