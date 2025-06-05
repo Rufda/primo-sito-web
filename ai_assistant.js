@@ -408,7 +408,7 @@ Se l'utente fa una domanda generica, rispondi direttamente senza usare funzioni 
 Se una funzione restituisce un messaggio di errore o un esito negativo, comunicalo all'utente in modo chiaro.
 Se l'utente chiede di fare qualcosa per cui non ha i permessi (es. un non-admin che cerca di aggiungere disponibilità), informalo che non ha i permessi necessari.`;
 
-    const tools = [{ functionDeclarations: aiFunctionDeclarations }];
+    const tools = [{ function_declarations: aiFunctionDeclarations }];
     let requestContents = [];
 
     history.forEach(h => {
@@ -428,13 +428,13 @@ Se l'utente chiede di fare qualcosa per cui non ha i permessi (es. un non-admin 
             body: JSON.stringify({
                 contents: requestContents,
                 tools: tools,
-                systemInstruction: { parts: [{ text: systemPrompt }]},
-                generationConfig: {
+                system_instruction: { parts: [{ text: systemPrompt }] },
+                generation_config: {
                     temperature: geminiAPI.temperature,
-                    maxOutputTokens: geminiAPI.maxOutputTokens,
-                    topP: 0.9,
+                    max_output_tokens: geminiAPI.maxOutputTokens,
+                    top_p: 0.9,
                 },
-                 safetySettings: [
+                safety_settings: [
                     { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
                     { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
                     { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
