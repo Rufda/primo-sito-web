@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chatbot Google AI</title>
+    <link rel="stylesheet" href="global.css">
+    <link rel="stylesheet" href="ai_assistant.css">
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background: var(--ai-bg-light);
+            font-family: var(--ai-font);
+        }
+        .chat-container {
+            width: 360px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+            border-radius: var(--ai-border-radius);
+            overflow: hidden;
+            background: #fff;
+        }
+        .chat-header {
+            background: var(--ai-gradient);
+            color: var(--ai-text-light);
+            padding: 16px 20px;
+            font-weight: 600;
+        }
+        .chat-messages {
+            height: 420px;
+            overflow-y: auto;
+            padding: 16px;
+            background: #fff;
+        }
+        .chat-input {
+            display: flex;
+            border-top: 1px solid #eee;
+        }
+        .chat-input input {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            outline: none;
+        }
+        .chat-input button {
+            padding: 0 20px;
+            border: none;
+            background: var(--ai-gradient);
+            color: #fff;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">Google AI Chatbot</div>
+        <div id="messages" class="chat-messages"></div>
+        <div class="chat-input">
+            <input type="text" id="userInput" placeholder="Scrivi un messaggio...">
+            <button id="sendBtn">Invia</button>
+        </div>
+    </div>
+    <script src="config.js"></script>
+    <script src="chatbot.js"></script>
+</body>
+</html>
