@@ -1,1027 +1,296 @@
-<!DOCTYPE html>
-<html lang="it">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Calendario interattivo per visualizzare e prenotare disponibilità orarie.">
-    <title>Visualizza Disponibilità</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <link rel="stylesheet" href="global.css">
-    <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="ai_assistant.css"> <!-- Assicura che sia il CSS corretto -->
-    <!-- Caricamento delle librerie Firebase -->
-    <script defer src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
-    <script defer src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
-    <script defer src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
-    <!-- Firebase wrapper -->
-    <script defer src="firebase-wrapper.js"></script>
-    <!-- Device detector -->
-    <script defer src="device_detector.js"></script>
-    <!-- Config -->
-    <script defer src="config.js"></script>
-    <style>
-        /* Variabili generali definite in global.css */
-        
-        body {
-            background: none;
-            position: relative;
-            height: 100vh;
-            margin: 0;
-            padding: 0;
-            font-family: 'Arial', sans-serif;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            color: var(--text-dark);
-            overflow: hidden; /* Impedisce lo scrolling della pagina */
-        }
-        body::before {
-            content: "";
-            background: url("foto2.PNG") center center / cover no-repeat;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: -1;
-            animation: fadeIn 1s ease-out;
-        }
+<html>
+  <head>
+    <link rel="preconnect" href="https://fonts.gstatic.com/" crossorigin="" />
+    <link
+      rel="stylesheet"
+      as="style"
+      onload="this.rel='stylesheet'"
+      href="https://fonts.googleapis.com/css2?display=swap&amp;family=Noto+Sans%3Awght%40400%3B500%3B700%3B900&amp;family=Plus+Jakarta+Sans%3Awght%40400%3B500%3B700%3B800"
+    />
 
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-        
-        @keyframes slideUp {
-            from { transform: translateY(20px); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
-        }
-        
-        .container {
-            max-width: 98%;
-            width: 1300px;
-            padding: 15px;
-            border-radius: var(--border-radius);
-            background-color: var(--background-medium);
-            backdrop-filter: blur(35px);
-            margin: 10px auto;
-            box-shadow: 0 8px 24px var(--shadow-color);
-            height: calc(100vh - 30px); /* Altezza fissa che si adatta allo schermo */
-            display: flex;
-            flex-direction: column;
-            animation: slideUp 0.5s ease-out;
-            overflow: hidden; /* Rimuove lo scroll al container principale */
-        }
-        
-        .container h2 {
-            text-align: center;
-            margin: 0 0 10px 0;
-            color: var(--text-dark);
-            text-shadow: 1px 1px 3px var(--shadow-color);
-            font-size: 1.6rem;
-            font-weight: 700;
-            letter-spacing: 0.5px;
-        }
-        
-        .button {
-            background: linear-gradient(145deg, var(--primary-light), var(--primary-color));
-            box-shadow: 3px 3px 6px var(--shadow-color);
-            color: var(--text-light);
-            padding: 8px 18px;
-            border: none;
-            border-radius: calc(var(--border-radius) / 1.5);
-            cursor: pointer;
-            font-weight: bold;
-            font-size: 14px;
-            transition: all var(--transition-speed) ease;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-        }
-        
-        .button:hover {
-            background: linear-gradient(145deg, var(--primary-color), var(--primary-dark));
-            transform: translateY(-2px);
-            box-shadow: 0 6px 12px var(--shadow-color);
-        }
-        
-        .button:active {
-            transform: translateY(0);
-            box-shadow: 0 2px 6px var(--shadow-color);
-        }
+    <title>Stitch Design</title>
+    <link rel="icon" type="image/x-icon" href="data:image/x-icon;base64," />
 
-        .dashboard {
-            display: flex;
-            gap: 15px;
-            flex: 1;
-            overflow: auto; /* was hidden */
-            flex-direction: row;
-        }
-        
-        .card {
-            background: var(--background-light);
-            border-radius: var(--border-radius);
-            padding: 15px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
-        
-        .card:first-child {
-            flex: 0.85; /* Ridotto leggermente per dare più spazio alla seconda colonna */
-            min-width: 350px;
-        }
-        
-        .card:last-child {
-            flex: 1.15; /* Aumentato leggermente per dare più spazio alla visualizzazione delle disponibilità */
-        }
-        
-        .card-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 10px;
-            border-bottom: 1px solid rgba(255, 192, 203, 0.3);
-            padding-bottom: 8px;
-        }
-
-        .card-title {
-            font-size: 1.1rem;
-            color: var(--primary-dark);
-            margin: 0;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .card-title i {
-            color: var(--primary-color);
-        }
-        
-        .calendar-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 10px;
-            background: rgba(255, 255, 255, 0.8);
-            padding: 8px;
-            border-radius: 8px;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
-        }
-        
-        .calendar-nav {
-            display: flex;
-            align-items: center;
-        }
-        
-        .calendar-nav button {
-            background: linear-gradient(145deg, var(--primary-light), var(--primary-color));
-            border: none;
-            font-size: 14px;
-            color: white;
-            cursor: pointer;
-            padding: 6px;
-            width: 28px;
-            height: 28px;
-            border-radius: 50%;
-            transition: all var(--transition-speed);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        .calendar-nav button:hover {
-            background: linear-gradient(145deg, var(--primary-color), var(--primary-dark));
-            transform: scale(1.1);
-            box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
-        }
-        
-        .current-month {
-            font-size: 16px;
-            font-weight: bold;
-            margin: 0 15px;
-            color: var(--text-dark);
-            min-width: 140px;
-            text-align: center;
-        }
-        
-        .calendar-grid {
-            display: grid;
-            grid-template-columns: repeat(7, 1fr);
-            gap: 8px;
-            margin: 5px 0 10px;
-            padding: 10px;
-            background: rgba(255, 255, 255, 0.8);
-            border-radius: 10px;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
-            flex: 1;
-            min-height: 240px;
-            scrollbar-width: thin;
-            scrollbar-color: rgba(255, 105, 180, 0.5) rgba(255, 255, 255, 0.4);
-            grid-auto-rows: minmax(35px, auto);
-        }
-        
-        .day-name {
-            text-align: center;
-            font-weight: bold;
-            padding: 6px 0;
-            color: var(--primary-dark);
-            font-size: 0.85rem;
-            text-transform: uppercase;
-            margin-bottom: 5px;
-            background: rgba(255, 255, 255, 0.6);
-            border-radius: 8px;
-            width: 100%;
-            box-sizing: border-box;
-        }
-        
-        .day {
-            aspect-ratio: 1 / 1;
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: all var(--transition-speed) ease;
-            font-weight: 500;
-            position: relative;
-            border: 2px solid transparent;
-            font-size: 1rem;
-            background: white;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-            min-height: 35px;
-            min-width: 35px;
-            box-sizing: border-box;
-            padding: 2px;
-            margin: 1px;
-            overflow: hidden;
-        }
-        
-        .day:hover:not(.disabled):not(.empty) {
-            background-color: rgba(255,192,203,0.4);
-            border: 2px solid var(--primary-color);
-            transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-        }
-        
-        .day.selected {
-            background-color: var(--primary-color);
-            color: white;
-            font-weight: bold;
-            transform: scale(1.05);
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
-        }
-        
-        .day.today {
-            border: 2px solid var(--primary-color);
-            font-weight: bold;
-            background-color: rgba(255,192,203,0.15);
-        }
-        
-        .day.has-slots {
-            background-color: rgba(255,192,203,0.3);
-            position: relative;
-            font-weight: bold;
-        }
-
-        .day.has-slots::after {
-            content: "";
-            position: absolute;
-            bottom: 4px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 5px;
-            height: 5px;
-            border-radius: 50%;
-            background-color: var(--primary-dark);
-        }
-        
-        .day.disabled, .day.empty {
-            background: transparent;
-            color: #ccc;
-            cursor: default;
-            box-shadow: none;
-        }
-
-        .calendar-legend {
-            display: flex;
-            justify-content: center;
-            gap: 15px;
-            margin: 5px 0 8px;
-            font-size: 0.75rem;
-        }
-        
-        .legend-item {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-        
-        .legend-marker {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-        }
-        
-        .legend-today {
-            border: 2px solid var(--primary-color);
-            background-color: rgba(255,192,203,0.15);
-        }
-        
-        .legend-selected {
-            background-color: var(--primary-color);
-        }
-        
-        .legend-has-slots {
-            background-color: rgba(255,192,203,0.3);
-            position: relative;
-        }
-        
-        .legend-has-slots::after {
-            content: "";
-            position: absolute;
-            bottom: 2px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 3px;
-            height: 3px;
-            border-radius: 50%;
-            background-color: var(--primary-dark);
-        }
-        
-        .table-container {
-            flex: 1;
-            overflow: hidden;
-            border-radius: var(--border-radius);
-            box-shadow: inset 0 0 10px rgba(0,0,0,0.05);
-            background-color: rgba(255,255,255,0.7);
-        }
-        
-        .slots-container {
-            flex: 1;
-            border-radius: var(--border-radius);
-            background-color: rgba(255,255,255,0.7);
-            position: relative;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
-        
-        .selected-date {
-            font-size: 1.1rem;
-            font-weight: bold;
-            margin-bottom: 8px;
-            color: var(--text-dark);
-            text-align: center;
-            background-color: rgba(255,255,255,0.8);
-            padding: 8px;
-            border-radius: calc(var(--border-radius) / 2);
-            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-        }
-        
-        .time-slots {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-            gap: 12px;
-            padding: 10px;
-            overflow-y: auto;
-            max-height: calc(100vh - 280px); /* Altezza dinamica per evitare scrolling della pagina */
-        }
-        
-        .time-slot {
-            padding: 15px;
-            background: white;
-            border-radius: var(--border-radius);
-            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-left: 3px solid var(--primary-color);
-            transition: all var(--transition-speed);
-        }
-        
-        .time-slot:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
-        }
-        
-        .time-info {
-            flex: 1;
-        }
-        
-        .time-range {
-            font-weight: bold;
-            font-size: 1.05rem;
-            margin-bottom: 6px;
-            color: var(--text-dark);
-        }
-        
-        .slot-description {
-            color: #666;
-            font-size: 0.85rem;
-        }
-        
-        .time-slot.occupied {
-            border-left-color: #ccc;
-            background: #f8f8f8;
-        }
-        
-        .book-button {
-            padding: 8px 15px;
-            background: linear-gradient(145deg, #4CAF50, #45a049);
-            color: white;
-            border: none;
-            border-radius: var(--border-radius);
-            cursor: pointer;
-            font-weight: bold;
-            transition: all var(--transition-speed);
-            margin-left: 10px;
-            white-space: nowrap;
-        }
-        
-        .book-button:hover {
-            background: linear-gradient(145deg, #45a049, #3d8b40);
-            transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-        }
-        
-        .booked-button {
-            padding: 8px 15px;
-            background: #e0e0e0;
-            color: #888;
-            border: none;
-            border-radius: var(--border-radius);
-            cursor: not-allowed;
-            font-weight: bold;
-            margin-left: 10px;
-            white-space: nowrap;
-        }
-        
-        .no-slots {
-            text-align: center;
-            padding: 30px 15px;
-            color: #666;
-            font-style: italic;
-            background: rgba(255,255,255,0.5);
-            border-radius: var(--border-radius);
-            margin: 10px 0;
-        }
-        
-        .add-slot-button {
-            margin-top: 12px;
-            align-self: center;
-        }
-        
-        .footer-area {
-            text-align: center;
-            margin-top: 12px;
-            padding-top: 8px;
-            border-top: 1px solid rgba(255,255,255,0.3);
-        }
-        
-        .edit-button, .delete-button {
-            width: 36px;
-            height: 36px;
-            border-radius: 50%;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            border: none;
-            cursor: pointer;
-            margin: 0 5px;
-            transition: all var(--transition-speed);
-            font-size: 0.85rem;
-        }
-        
-        .edit-button {
-            background: linear-gradient(145deg, #3498db, #2980b9);
-            color: white;
-        }
-        
-        .delete-button {
-            background: linear-gradient(145deg, #e74c3c, #c0392b);
-            color: white;
-        }
-        
-        .edit-button:hover, .delete-button:hover {
-            transform: scale(1.1);
-            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-        }
-        
-        .toast {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background-color: #4CAF50;
-            color: white;
-            padding: 12px 20px;
-            border-radius: var(--border-radius);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-            display: flex;
-            align-items: center;
-            z-index: 1100;
-            transform: translateX(150%);
-            transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            min-width: 300px;
-        }
-        
-        .toast.show {
-            transform: translateX(0);
-        }
-        
-        .toast-error {
-            background-color: #f44336;
-        }
-        
-        .toast .icon {
-            margin-right: 15px;
-            font-size: 20px;
-        }
-
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0,0,0,0.5);
-            z-index: 1000;
-            justify-content: center;
-            align-items: center;
-        }
-        
-        .modal.open {
-            display: flex;
-        }
-        
-        .modal-content {
-            background: white;
-            padding: 25px;
-            border-radius: var(--border-radius);
-            width: 90%;
-            max-width: 450px;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.2);
-            position: relative;
-            transform: translateY(0);
-            opacity: 1;
-            transition: all var(--transition-speed) ease;
-        }
-        
-        .modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
-            padding-bottom: 10px;
-            border-bottom: 1px solid #eee;
-        }
-        
-        .modal-title {
-            margin: 0;
-            color: var(--primary-dark);
-            font-size: 1.2rem;
-        }
-        
-        .close-modal {
-            background: none;
-            border: none;
-            font-size: 1.5rem;
-            cursor: pointer;
-            color: #999;
-            transition: color var(--transition-speed);
-        }
-        
-        .close-modal:hover {
-            color: var(--primary-dark);
-        }
-        
-        .modal-body {
-            margin-bottom: 20px;
-        }
-        
-        .form-group {
-            margin-bottom: 15px;
-        }
-        
-        .form-group label {
-            display: block;
-            margin-bottom: 5px;
-            color: var(--text-dark);
-            font-weight: 500;
-        }
-        
-        .form-group input, .form-group textarea {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            box-sizing: border-box;
-            font-size: 0.95rem;
-            transition: border-color var(--transition-speed);
-        }
-        
-        .form-group input:focus, .form-group textarea:focus {
-            border-color: var(--primary-color);
-            outline: none;
-            box-shadow: 0 0 0 2px rgba(255,105,180,0.2);
-        }
-        
-        .modal-footer {
-            display: flex;
-            justify-content: flex-end;
-            gap: 10px;
-        }
-        
-        .confirm-btn, .cancel-btn {
-            padding: 10px 20px;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: bold;
-            transition: all var(--transition-speed);
-        }
-        
-        .confirm-btn {
-            background: linear-gradient(145deg, var(--primary-light), var(--primary-color));
-            color: white;
-        }
-        
-        .cancel-btn {
-            background-color: #f0f0f0;
-            color: #666;
-        }
-        
-        .confirm-btn:hover {
-            background: linear-gradient(145deg, var(--primary-color), var(--primary-dark));
-            transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-        }
-        
-        .cancel-btn:hover {
-            background-color: #e0e0e0;
-            transform: translateY(-2px);
-        }
-
-        /* Header con nome utente */
-        .app-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 5px 0;
-            margin-bottom: 10px;
-        }
-        
-        .user-info {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            color: var(--text-dark);
-            font-size: 0.9rem;
-        }
-        
-        .user-info i {
-            color: var(--primary-color);
-            font-size: 1rem;
-        }
-
-        /* Nasconde di default i pulsanti admin */
-        .admin-only {
-            display: none;
-        }
-
-        /* Adatta layout per schermi più piccoli */
-        @media (max-width: 768px) {
-            .container {
-                padding: 10px;
-                width: 98%;
-                height: calc(100vh - 20px);
-            }
-            
-            .dashboard {
-                flex-direction: column;
-                gap: 12px;
-            }
-            
-            .card:first-child,
-            .card:last-child {
-                min-width: 100%;
-            }
-            
-            .time-slots {
-                grid-template-columns: 1fr;
-                max-height: calc(100vh - 400px); /* Adattato per vista mobile */
-            }
-            
-            .container h2 {
-                font-size: 1.3rem;
-            }
-        }
-
-        /* Stili per AI Assistant - Inline per compatibilità */
-        .ai-assistant-container {
-            position: fixed !important;
-            bottom: 20px !important;
-            right: 20px !important;
-            z-index: 9999 !important;
-            font-family: Arial, sans-serif !important;
-        }
-        
-        .ai-assistant-button {
-            width: 60px !important;
-            height: 60px !important;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%) !important;
-            color: white !important;
-            border-radius: 50% !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            cursor: pointer !important;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3) !important;
-            transition: all 0.3s ease !important;
-            font-size: 18px !important;
-            border: none !important;
-            pointer-events: auto !important;
-        }
-        
-        .ai-assistant-button:hover {
-            transform: translateY(-2px) scale(1.05) !important;
-        }
-        
-        .ai-assistant-chatbox {
-            position: fixed !important;
-            bottom: 90px !important;
-            right: 20px !important;
-            width: 350px !important;
-            height: 450px !important;
-            background: white !important;
-            border-radius: 12px !important;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3) !important;
-            display: none !important;
-            flex-direction: column !important;
-            overflow: hidden !important;
-            border: 1px solid #e0e0e0 !important;
-        }
-        
-        .ai-assistant-chatbox.active {
-            display: flex !important;
-        }
-        
-        .ai-assistant-header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%) !important;
-            color: white !important;
-            padding: 15px 20px !important;
-            display: flex !important;
-            justify-content: space-between !important;
-            align-items: center !important;
-        }
-        
-        .ai-assistant-close {
-            background: none !important;
-            border: none !important;
-            color: white !important;
-            font-size: 20px !important;
-            cursor: pointer !important;
-            padding: 5px !important;
-        }
-        
-        .ai-assistant-messages {
-            flex: 1 !important;
-            padding: 15px !important;
-            overflow-y: auto !important;
-            display: flex !important;
-            flex-direction: column !important;
-            gap: 12px !important;
-            background: #f8f9fa !important;
-        }
-        
-        .ai-assistant-message {
-            max-width: 80% !important;
-            padding: 10px 15px !important;
-            border-radius: 15px !important;
-            font-size: 14px !important;
-            line-height: 1.4 !important;
-        }
-        
-        .ai-assistant-message.user {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%) !important;
-            color: white !important;
-            align-self: flex-end !important;
-        }
-        
-        .ai-assistant-message.bot {
-            background: white !important;
-            color: #333 !important;
-            align-self: flex-start !important;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
-            border: 1px solid #e0e0e0 !important;
-        }
-        
-        .ai-assistant-suggestions {
-            padding: 10px 15px !important;
-            display: flex !important;
-            flex-wrap: wrap !important;
-            gap: 8px !important;
-            border-top: 1px solid #e0e0e0 !important;
-            background: #f8f9fa !important;
-        }
-        
-        .ai-assistant-suggestion {
-            background: rgba(102, 126, 234, 0.1) !important;
-            color: #667eea !important;
-            padding: 6px 12px !important;
-            border-radius: 15px !important;
-            font-size: 13px !important;
-            cursor: pointer !important;
-            border: 1px solid rgba(102, 126, 234, 0.3) !important;
-        }
-        
-        .ai-assistant-input-container {
-            display: flex !important;
-            padding: 15px !important;
-            gap: 10px !important;
-            border-top: 1px solid #e0e0e0 !important;
-            background: white !important;
-        }
-        
-        .ai-assistant-input {
-            flex: 1 !important;
-            padding: 10px 15px !important;
-            border: 1px solid #ddd !important;
-            border-radius: 20px !important;
-            font-size: 14px !important;
-            outline: none !important;
-        }
-        
-        .ai-assistant-send {
-            width: 40px !important;
-            height: 40px !important;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%) !important;
-            border: none !important;
-            border-radius: 50% !important;
-            cursor: pointer !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-        }
-        
-        .ai-assistant-typing {
-            display: flex !important;
-            align-items: center !important;
-            gap: 5px !important;
-            padding: 10px 15px !important;
-            background: white !important;
-            border-radius: 15px !important;
-            align-self: flex-start !important;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
-        }
-        
-        .ai-assistant-typing-dot {
-            width: 8px !important;
-            height: 8px !important;
-            background: #667eea !important;
-            border-radius: 50% !important;
-            animation: ai-typing-bounce 1.4s infinite ease-in-out !important;
-        }
-        
-        @keyframes ai-typing-bounce {
-            0%, 80%, 100% { transform: scale(0.8); opacity: 0.5; }
-            40% { transform: scale(1.2); opacity: 1; }
-        }
-
-        /* Header con nome utente */
-    </style>
-</head>
-<body>
-    <main class="container" role="main">
-        <div class="app-header">
-            <h2><i class="fas fa-calendar-alt"></i> Calendario Disponibilità</h2>
-            <div class="user-info">
-                <i class="fas fa-user-circle"></i>
-                <span id="userName">Utente</span>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  </head>
+  <body>
+    <div
+      class="relative flex size-full min-h-screen flex-col bg-white group/design-root overflow-x-hidden"
+      style='--radio-dot-svg: url(&apos;data:image/svg+xml,%3csvg viewBox=%270 0 16 16%27 fill=%27rgb(24,17,20)%27 xmlns=%27http://www.w3.org/2000/svg%27%3e%3ccircle cx=%278%27 cy=%278%27 r=%273%27/%3e%3c/svg%3e&apos;); font-family: "Plus Jakarta Sans", "Noto Sans", sans-serif;'
+    >
+      <div class="layout-container flex h-full grow flex-col">
+        <header class="flex items-center justify-between whitespace-nowrap border-b border-solid border-b-[#f5f0f2] px-10 py-3">
+          <div class="flex items-center gap-4 text-[#181114]">
+            <div class="size-4">
+              <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path
+                  d="M13.8261 17.4264C16.7203 18.1174 20.2244 18.5217 24 18.5217C27.7756 18.5217 31.2797 18.1174 34.1739 17.4264C36.9144 16.7722 39.9967 15.2331 41.3563 14.1648L24.8486 40.6391C24.4571 41.267 23.5429 41.267 23.1514 40.6391L6.64374 14.1648C8.00331 15.2331 11.0856 16.7722 13.8261 17.4264Z"
+                  fill="currentColor"
+                ></path>
+                <path
+                  fill-rule="evenodd"
+                  clip-rule="evenodd"
+                  d="M39.998 12.236C39.9944 12.2537 39.9875 12.2845 39.9748 12.3294C39.9436 12.4399 39.8949 12.5741 39.8346 12.7175C39.8168 12.7597 39.7989 12.8007 39.7813 12.8398C38.5103 13.7113 35.9788 14.9393 33.7095 15.4811C30.9875 16.131 27.6413 16.5217 24 16.5217C20.3587 16.5217 17.0125 16.131 14.2905 15.4811C12.0012 14.9346 9.44505 13.6897 8.18538 12.8168C8.17384 12.7925 8.16216 12.767 8.15052 12.7408C8.09919 12.6249 8.05721 12.5114 8.02977 12.411C8.00356 12.3152 8.00039 12.2667 8.00004 12.2612C8.00004 12.261 8 12.2607 8.00004 12.2612C8.00004 12.2359 8.0104 11.9233 8.68485 11.3686C9.34546 10.8254 10.4222 10.2469 11.9291 9.72276C14.9242 8.68098 19.1919 8 24 8C28.8081 8 33.0758 8.68098 36.0709 9.72276C37.5778 10.2469 38.6545 10.8254 39.3151 11.3686C39.9006 11.8501 39.9857 12.1489 39.998 12.236ZM4.95178 15.2312L21.4543 41.6973C22.6288 43.5809 25.3712 43.5809 26.5457 41.6973L43.0534 15.223C43.0709 15.1948 43.0878 15.1662 43.104 15.1371L41.3563 14.1648C43.104 15.1371 43.1038 15.1374 43.104 15.1371L43.1051 15.135L43.1065 15.1325L43.1101 15.1261L43.1199 15.1082C43.1276 15.094 43.1377 15.0754 43.1497 15.0527C43.1738 15.0075 43.2062 14.9455 43.244 14.8701C43.319 14.7208 43.4196 14.511 43.5217 14.2683C43.6901 13.8679 44 13.0689 44 12.2609C44 10.5573 43.003 9.22254 41.8558 8.2791C40.6947 7.32427 39.1354 6.55361 37.385 5.94477C33.8654 4.72057 29.133 4 24 4C18.867 4 14.1346 4.72057 10.615 5.94478C8.86463 6.55361 7.30529 7.32428 6.14419 8.27911C4.99695 9.22255 3.99999 10.5573 3.99999 12.2609C3.99999 13.1275 4.29264 13.9078 4.49321 14.3607C4.60375 14.6102 4.71348 14.8196 4.79687 14.9689C4.83898 15.0444 4.87547 15.1065 4.9035 15.1529C4.91754 15.1762 4.92954 15.1957 4.93916 15.2111L4.94662 15.223L4.95178 15.2312ZM35.9868 18.996L24 38.22L12.0131 18.996C12.4661 19.1391 12.9179 19.2658 13.3617 19.3718C16.4281 20.1039 20.0901 20.5217 24 20.5217C27.9099 20.5217 31.5719 20.1039 34.6383 19.3718C35.082 19.2658 35.5339 19.1391 35.9868 18.996Z"
+                  fill="currentColor"
+                ></path>
+              </svg>
             </div>
+            <h2 class="text-[#181114] text-lg font-bold leading-tight tracking-[-0.015em]">Nail Studio</h2>
+          </div>
+          <div class="flex flex-1 justify-end gap-8">
+            <div class="flex items-center gap-9">
+              <a class="text-[#181114] text-sm font-medium leading-normal" href="#">Services</a>
+              <a class="text-[#181114] text-sm font-medium leading-normal" href="#">Gallery</a>
+              <a class="text-[#181114] text-sm font-medium leading-normal" href="#">About</a>
+              <a class="text-[#181114] text-sm font-medium leading-normal" href="#">Contact</a>
+            </div>
+            <button
+              class="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-full h-10 px-4 bg-[#f655a5] text-white text-sm font-bold leading-normal tracking-[0.015em]"
+            >
+              <span class="truncate">Book Now</span>
+            </button>
+          </div>
+        </header>
+        <div class="px-40 flex flex-1 justify-center py-5">
+          <div class="layout-content-container flex flex-col w-[512px] max-w-[512px] py-5 max-w-[960px] flex-1">
+            <div class="flex flex-wrap justify-between gap-3 p-4">
+              <p class="text-[#181114] tracking-light text-[32px] font-bold leading-tight min-w-72">Book Your Appointment</p>
+            </div>
+            <h3 class="text-[#181114] text-lg font-bold leading-tight tracking-[-0.015em] px-4 pb-2 pt-4">Select Service</h3>
+            <div class="flex flex-col gap-3 p-4">
+              <label class="flex items-center gap-4 rounded-xl border border-solid border-[#e6dbe0] p-[15px]">
+                <input
+                  type="radio"
+                  class="h-5 w-5 border-2 border-[#e6dbe0] bg-transparent text-transparent checked:border-[#181114] checked:bg-[image:--radio-dot-svg] focus:outline-none focus:ring-0 focus:ring-offset-0 checked:focus:border-[#181114]"
+                  name="2c675861-1a4d-4156-82eb-d1d77c58023d"
+                  checked=""
+                />
+                <div class="flex grow flex-col"><p class="text-[#181114] text-sm font-medium leading-normal">Manicure</p></div>
+              </label>
+              <label class="flex items-center gap-4 rounded-xl border border-solid border-[#e6dbe0] p-[15px]">
+                <input
+                  type="radio"
+                  class="h-5 w-5 border-2 border-[#e6dbe0] bg-transparent text-transparent checked:border-[#181114] checked:bg-[image:--radio-dot-svg] focus:outline-none focus:ring-0 focus:ring-offset-0 checked:focus:border-[#181114]"
+                  name="2c675861-1a4d-4156-82eb-d1d77c58023d"
+                />
+                <div class="flex grow flex-col"><p class="text-[#181114] text-sm font-medium leading-normal">Pedicure</p></div>
+              </label>
+              <label class="flex items-center gap-4 rounded-xl border border-solid border-[#e6dbe0] p-[15px]">
+                <input
+                  type="radio"
+                  class="h-5 w-5 border-2 border-[#e6dbe0] bg-transparent text-transparent checked:border-[#181114] checked:bg-[image:--radio-dot-svg] focus:outline-none focus:ring-0 focus:ring-offset-0 checked:focus:border-[#181114]"
+                  name="2c675861-1a4d-4156-82eb-d1d77c58023d"
+                />
+                <div class="flex grow flex-col"><p class="text-[#181114] text-sm font-medium leading-normal">Manicure &amp; Pedicure</p></div>
+              </label>
+              <label class="flex items-center gap-4 rounded-xl border border-solid border-[#e6dbe0] p-[15px]">
+                <input
+                  type="radio"
+                  class="h-5 w-5 border-2 border-[#e6dbe0] bg-transparent text-transparent checked:border-[#181114] checked:bg-[image:--radio-dot-svg] focus:outline-none focus:ring-0 focus:ring-offset-0 checked:focus:border-[#181114]"
+                  name="2c675861-1a4d-4156-82eb-d1d77c58023d"
+                />
+                <div class="flex grow flex-col"><p class="text-[#181114] text-sm font-medium leading-normal">Nail Art</p></div>
+              </label>
+            </div>
+            <h3 class="text-[#181114] text-lg font-bold leading-tight tracking-[-0.015em] px-4 pb-2 pt-4">Select Date</h3>
+            <div class="flex flex-wrap items-center justify-center gap-6 p-4">
+              <div class="flex min-w-72 max-w-[336px] flex-1 flex-col gap-0.5">
+                <div class="flex items-center p-1 justify-between">
+                  <button>
+                    <div class="text-[#181114] flex size-10 items-center justify-center" data-icon="CaretLeft" data-size="18px" data-weight="regular">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="18px" height="18px" fill="currentColor" viewBox="0 0 256 256">
+                        <path d="M165.66,202.34a8,8,0,0,1-11.32,11.32l-80-80a8,8,0,0,1,0-11.32l80-80a8,8,0,0,1,11.32,11.32L91.31,128Z"></path>
+                      </svg>
+                    </div>
+                  </button>
+                  <p class="text-[#181114] text-base font-bold leading-tight flex-1 text-center">July 2024</p>
+                  <button>
+                    <div class="text-[#181114] flex size-10 items-center justify-center" data-icon="CaretRight" data-size="18px" data-weight="regular">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="18px" height="18px" fill="currentColor" viewBox="0 0 256 256">
+                        <path d="M181.66,133.66l-80,80a8,8,0,0,1-11.32-11.32L164.69,128,90.34,53.66a8,8,0,0,1,11.32-11.32l80,80A8,8,0,0,1,181.66,133.66Z"></path>
+                      </svg>
+                    </div>
+                  </button>
+                </div>
+                <div class="grid grid-cols-7">
+                  <p class="text-[#181114] text-[13px] font-bold leading-normal tracking-[0.015em] flex h-12 w-full items-center justify-center pb-0.5">S</p>
+                  <p class="text-[#181114] text-[13px] font-bold leading-normal tracking-[0.015em] flex h-12 w-full items-center justify-center pb-0.5">M</p>
+                  <p class="text-[#181114] text-[13px] font-bold leading-normal tracking-[0.015em] flex h-12 w-full items-center justify-center pb-0.5">T</p>
+                  <p class="text-[#181114] text-[13px] font-bold leading-normal tracking-[0.015em] flex h-12 w-full items-center justify-center pb-0.5">W</p>
+                  <p class="text-[#181114] text-[13px] font-bold leading-normal tracking-[0.015em] flex h-12 w-full items-center justify-center pb-0.5">T</p>
+                  <p class="text-[#181114] text-[13px] font-bold leading-normal tracking-[0.015em] flex h-12 w-full items-center justify-center pb-0.5">F</p>
+                  <p class="text-[#181114] text-[13px] font-bold leading-normal tracking-[0.015em] flex h-12 w-full items-center justify-center pb-0.5">S</p>
+                  <button class="h-12 w-full text-[#181114] col-start-4 text-sm font-medium leading-normal">
+                    <div class="flex size-full items-center justify-center rounded-full">1</div>
+                  </button>
+                  <button class="h-12 w-full text-[#181114] text-sm font-medium leading-normal">
+                    <div class="flex size-full items-center justify-center rounded-full">2</div>
+                  </button>
+                  <button class="h-12 w-full text-[#181114] text-sm font-medium leading-normal">
+                    <div class="flex size-full items-center justify-center rounded-full">3</div>
+                  </button>
+                  <button class="h-12 w-full text-[#181114] text-sm font-medium leading-normal">
+                    <div class="flex size-full items-center justify-center rounded-full">4</div>
+                  </button>
+                  <button class="h-12 w-full text-white text-sm font-medium leading-normal">
+                    <div class="flex size-full items-center justify-center rounded-full bg-[#f655a5]">5</div>
+                  </button>
+                  <button class="h-12 w-full text-[#181114] text-sm font-medium leading-normal">
+                    <div class="flex size-full items-center justify-center rounded-full">6</div>
+                  </button>
+                  <button class="h-12 w-full text-[#181114] text-sm font-medium leading-normal">
+                    <div class="flex size-full items-center justify-center rounded-full">7</div>
+                  </button>
+                  <button class="h-12 w-full text-[#181114] text-sm font-medium leading-normal">
+                    <div class="flex size-full items-center justify-center rounded-full">8</div>
+                  </button>
+                  <button class="h-12 w-full text-[#181114] text-sm font-medium leading-normal">
+                    <div class="flex size-full items-center justify-center rounded-full">9</div>
+                  </button>
+                  <button class="h-12 w-full text-[#181114] text-sm font-medium leading-normal">
+                    <div class="flex size-full items-center justify-center rounded-full">10</div>
+                  </button>
+                  <button class="h-12 w-full text-[#181114] text-sm font-medium leading-normal">
+                    <div class="flex size-full items-center justify-center rounded-full">11</div>
+                  </button>
+                  <button class="h-12 w-full text-[#181114] text-sm font-medium leading-normal">
+                    <div class="flex size-full items-center justify-center rounded-full">12</div>
+                  </button>
+                  <button class="h-12 w-full text-[#181114] text-sm font-medium leading-normal">
+                    <div class="flex size-full items-center justify-center rounded-full">13</div>
+                  </button>
+                  <button class="h-12 w-full text-[#181114] text-sm font-medium leading-normal">
+                    <div class="flex size-full items-center justify-center rounded-full">14</div>
+                  </button>
+                  <button class="h-12 w-full text-[#181114] text-sm font-medium leading-normal">
+                    <div class="flex size-full items-center justify-center rounded-full">15</div>
+                  </button>
+                  <button class="h-12 w-full text-[#181114] text-sm font-medium leading-normal">
+                    <div class="flex size-full items-center justify-center rounded-full">16</div>
+                  </button>
+                  <button class="h-12 w-full text-[#181114] text-sm font-medium leading-normal">
+                    <div class="flex size-full items-center justify-center rounded-full">17</div>
+                  </button>
+                  <button class="h-12 w-full text-[#181114] text-sm font-medium leading-normal">
+                    <div class="flex size-full items-center justify-center rounded-full">18</div>
+                  </button>
+                  <button class="h-12 w-full text-[#181114] text-sm font-medium leading-normal">
+                    <div class="flex size-full items-center justify-center rounded-full">19</div>
+                  </button>
+                  <button class="h-12 w-full text-[#181114] text-sm font-medium leading-normal">
+                    <div class="flex size-full items-center justify-center rounded-full">20</div>
+                  </button>
+                  <button class="h-12 w-full text-[#181114] text-sm font-medium leading-normal">
+                    <div class="flex size-full items-center justify-center rounded-full">21</div>
+                  </button>
+                  <button class="h-12 w-full text-[#181114] text-sm font-medium leading-normal">
+                    <div class="flex size-full items-center justify-center rounded-full">22</div>
+                  </button>
+                  <button class="h-12 w-full text-[#181114] text-sm font-medium leading-normal">
+                    <div class="flex size-full items-center justify-center rounded-full">23</div>
+                  </button>
+                  <button class="h-12 w-full text-[#181114] text-sm font-medium leading-normal">
+                    <div class="flex size-full items-center justify-center rounded-full">24</div>
+                  </button>
+                  <button class="h-12 w-full text-[#181114] text-sm font-medium leading-normal">
+                    <div class="flex size-full items-center justify-center rounded-full">25</div>
+                  </button>
+                  <button class="h-12 w-full text-[#181114] text-sm font-medium leading-normal">
+                    <div class="flex size-full items-center justify-center rounded-full">26</div>
+                  </button>
+                  <button class="h-12 w-full text-[#181114] text-sm font-medium leading-normal">
+                    <div class="flex size-full items-center justify-center rounded-full">27</div>
+                  </button>
+                  <button class="h-12 w-full text-[#181114] text-sm font-medium leading-normal">
+                    <div class="flex size-full items-center justify-center rounded-full">28</div>
+                  </button>
+                  <button class="h-12 w-full text-[#181114] text-sm font-medium leading-normal">
+                    <div class="flex size-full items-center justify-center rounded-full">29</div>
+                  </button>
+                  <button class="h-12 w-full text-[#181114] text-sm font-medium leading-normal">
+                    <div class="flex size-full items-center justify-center rounded-full">30</div>
+                  </button>
+                </div>
+              </div>
+            </div>
+            <h3 class="text-[#181114] text-lg font-bold leading-tight tracking-[-0.015em] px-4 pb-2 pt-4">Select Time</h3>
+            <div class="flex flex-wrap gap-3 p-4">
+              <label
+                class="text-sm font-medium leading-normal flex items-center justify-center rounded-xl border border-[#e6dbe0] px-4 h-11 text-[#181114] has-[:checked]:border-[3px] has-[:checked]:px-3.5 has-[:checked]:border-[#f655a5] relative cursor-pointer"
+              >
+                10:00 AM
+                <input type="radio" class="invisible absolute" name="0e84e827-95a3-44b1-898a-c9d20d383a9b" />
+              </label>
+              <label
+                class="text-sm font-medium leading-normal flex items-center justify-center rounded-xl border border-[#e6dbe0] px-4 h-11 text-[#181114] has-[:checked]:border-[3px] has-[:checked]:px-3.5 has-[:checked]:border-[#f655a5] relative cursor-pointer"
+              >
+                11:00 AM
+                <input type="radio" class="invisible absolute" name="0e84e827-95a3-44b1-898a-c9d20d383a9b" />
+              </label>
+              <label
+                class="text-sm font-medium leading-normal flex items-center justify-center rounded-xl border border-[#e6dbe0] px-4 h-11 text-[#181114] has-[:checked]:border-[3px] has-[:checked]:px-3.5 has-[:checked]:border-[#f655a5] relative cursor-pointer"
+              >
+                12:00 PM
+                <input type="radio" class="invisible absolute" name="0e84e827-95a3-44b1-898a-c9d20d383a9b" />
+              </label>
+              <label
+                class="text-sm font-medium leading-normal flex items-center justify-center rounded-xl border border-[#e6dbe0] px-4 h-11 text-[#181114] has-[:checked]:border-[3px] has-[:checked]:px-3.5 has-[:checked]:border-[#f655a5] relative cursor-pointer"
+              >
+                1:00 PM
+                <input type="radio" class="invisible absolute" name="0e84e827-95a3-44b1-898a-c9d20d383a9b" />
+              </label>
+              <label
+                class="text-sm font-medium leading-normal flex items-center justify-center rounded-xl border border-[#e6dbe0] px-4 h-11 text-[#181114] has-[:checked]:border-[3px] has-[:checked]:px-3.5 has-[:checked]:border-[#f655a5] relative cursor-pointer"
+              >
+                2:00 PM
+                <input type="radio" class="invisible absolute" name="0e84e827-95a3-44b1-898a-c9d20d383a9b" />
+              </label>
+              <label
+                class="text-sm font-medium leading-normal flex items-center justify-center rounded-xl border border-[#e6dbe0] px-4 h-11 text-[#181114] has-[:checked]:border-[3px] has-[:checked]:px-3.5 has-[:checked]:border-[#f655a5] relative cursor-pointer"
+              >
+                3:00 PM
+                <input type="radio" class="invisible absolute" name="0e84e827-95a3-44b1-898a-c9d20d383a9b" />
+              </label>
+              <label
+                class="text-sm font-medium leading-normal flex items-center justify-center rounded-xl border border-[#e6dbe0] px-4 h-11 text-[#181114] has-[:checked]:border-[3px] has-[:checked]:px-3.5 has-[:checked]:border-[#f655a5] relative cursor-pointer"
+              >
+                4:00 PM
+                <input type="radio" class="invisible absolute" name="0e84e827-95a3-44b1-898a-c9d20d383a9b" />
+              </label>
+              <label
+                class="text-sm font-medium leading-normal flex items-center justify-center rounded-xl border border-[#e6dbe0] px-4 h-11 text-[#181114] has-[:checked]:border-[3px] has-[:checked]:px-3.5 has-[:checked]:border-[#f655a5] relative cursor-pointer"
+              >
+                5:00 PM
+                <input type="radio" class="invisible absolute" name="0e84e827-95a3-44b1-898a-c9d20d383a9b" />
+              </label>
+            </div>
+            <div class="flex px-4 py-3">
+              <button
+                class="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-full h-10 px-4 flex-1 bg-[#f655a5] text-white text-sm font-bold leading-normal tracking-[0.015em]"
+              >
+                <span class="truncate">Confirm Booking</span>
+              </button>
+            </div>
+          </div>
         </div>
-        
-        <div class="dashboard">
-            <!-- Calendario -->
-            <div class="card">
-                <div class="card-header">
-                    <h3 class="card-title"><i class="fas fa-calendar-week"></i> Calendario</h3>
-                    <div class="calendar-nav">
-                        <button id="prevMonth" type="button" aria-label="Mese precedente"><i class="fas fa-chevron-left"></i></button>
-                        <div class="current-month" id="currentMonth">Aprile 2025</div>
-                        <button id="nextMonth" type="button" aria-label="Mese successivo"><i class="fas fa-chevron-right"></i></button>
-                    </div>
+        <footer class="flex justify-center">
+          <div class="flex max-w-[960px] flex-1 flex-col">
+            <div class="flex justify-end overflow-hidden px-5 pb-5">
+              <button
+                class="flex max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-full h-14 bg-[#f655a5] text-white text-base font-bold leading-normal tracking-[0.015em] min-w-0 px-2 gap-4 pl-4 pr-6"
+              >
+                <div class="text-white" data-icon="ChatCircleDots" data-size="24px" data-weight="regular">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24px" height="24px" fill="currentColor" viewBox="0 0 256 256">
+                    <path
+                      d="M140,128a12,12,0,1,1-12-12A12,12,0,0,1,140,128ZM84,116a12,12,0,1,0,12,12A12,12,0,0,0,84,116Zm88,0a12,12,0,1,0,12,12A12,12,0,0,0,172,116Zm60,12A104,104,0,0,1,79.12,219.82L45.07,231.17a16,16,0,0,1-20.24-20.24l11.35-34.05A104,104,0,1,1,232,128Zm-16,0A88,88,0,1,0,51.81,172.06a8,8,0,0,1,.66,6.54L40,216,77.4,203.53a7.85,7.85,0,0,1,2.53-.42,8,8,0,0,1,4,1.08A88,88,0,0,0,216,128Z"
+                    ></path>
+                  </svg>
                 </div>
-                
-                <div class="calendar-grid">
-                    <div class="day-name">Lu</div>
-                    <div class="day-name">Ma</div>
-                    <div class="day-name">Me</div>
-                    <div class="day-name">Gi</div>
-                    <div class="day-name">Ve</div>
-                    <div class="day-name">Sa</div>
-                    <div class="day-name">Do</div>
-                    <!-- I giorni verranno generati da JavaScript -->
-                </div>
-                
-                <div class="calendar-legend">
-                    <div class="legend-item">
-                        <div class="legend-marker legend-today"></div>
-                        <span>Oggi</span>
-                    </div>
-                    <div class="legend-item">
-                        <div class="legend-marker legend-selected"></div>
-                        <span>Selezionato</span>
-                    </div>
-                    <div class="legend-item">
-                        <div class="legend-marker legend-has-slots"></div>
-                        <span>Con disponibilità</span>
-                    </div>
-                </div>
-                
-                <div class="footer-area">
-                    <button id="btnModificaDisponibilita" class="button admin-only" type="button" aria-label="Modifica disponibilità">
-                        <i class="fas fa-edit"></i> Modifica disponibilità
-                    </button>
-                    
-                    <button id="btnGestionePrenotazioni" class="button admin-only" type="button" aria-label="Gestione prenotazioni">
-                        <i class="fas fa-calendar-check"></i> Gestione prenotazioni
-                    </button>
-                    
-                    <button class="button" id="logoutButton" type="button" aria-label="Logout">
-                        <i class="fas fa-sign-out-alt"></i> Logout
-                    </button>
-                </div>
+              </button>
             </div>
-            
-            <!-- Disponibilità per la data selezionata -->
-            <div class="card">
-                <div class="card-header">
-                    <h3 class="card-title"><i class="fas fa-clock"></i> Disponibilità</h3>
-                </div>
-                
-                <div class="selected-date" id="slotDate">Seleziona una data</div>
-                
-                <div class="slots-container">
-                    <div class="time-slots" id="timeSlots">
-                        <div class="no-slots">Seleziona un giorno dal calendario per vedere le disponibilità</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </main>
-    
-    <!-- Modal prenotazione -->
-    <div class="modal" id="bookingModal" role="dialog" aria-modal="true" aria-labelledby="bookingModalTitle">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 class="modal-title" id="bookingModalTitle">Prenota Appuntamento</h3>
-                <button class="close-modal" id="closeModal" type="button" aria-label="Chiudi finestra">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div class="form-group">
-                    <label for="booking-name">Nome e Cognome</label>
-                    <input type="text" id="booking-name" required>
-                </div>
-                <div class="form-group">
-                    <label for="booking-email">Email</label>
-                    <input type="email" id="booking-email" required>
-                </div>
-                <div class="form-group">
-                    <label for="booking-phone">Telefono</label>
-                    <input type="tel" id="booking-phone">
-                </div>
-                <div class="form-group">
-                    <label for="booking-notes">Note</label>
-                    <textarea id="booking-notes"></textarea>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="cancel-btn" id="cancelBooking" type="button">Annulla</button>
-                <button class="confirm-btn" id="confirmBooking" type="button">Conferma</button>
-            </div>
-        </div>
+          </div>
+        </footer>
+      </div>
     </div>
-    
-    <!-- Toast notification -->
-    <div class="toast" id="toast">
-        <div class="icon"><i class="fas fa-check-circle"></i></div>
-        <div class="toast-message" id="toastMessage"></div>
-    </div>
-    
-    <!-- Loading overlay -->
-    <div class="loading-overlay" id="loadingOverlay" style="display: none;">
-        <div class="loader"></div>
-    </div>
-    
-    <script src="config.js"></script>
-    <script src="firebase-wrapper.js"></script>
-    <script src="ai_assistant.js"></script> <!-- Assicura che sia lo script corretto e in ordine -->
-    <script src="vDisponibilita.js"></script>
-</body>
+  </body>
 </html>
