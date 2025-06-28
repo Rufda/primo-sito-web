@@ -1,1113 +1,277 @@
-<!DOCTYPE html>
-<html lang="it">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestione Disponibilità</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <link rel="stylesheet" href="global.css">
-    <link rel="stylesheet" href="stile_responsive.css">
-    <link rel="stylesheet" href="ai_assistant.css"> <!-- Assicura che sia il CSS corretto -->
-    <!-- Caricamento dei file Firebase -->
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
-    <!-- Firebase wrapper -->
-    <script src="firebase-wrapper.js"></script>
-    <!-- Caricamento anticipato del device detector per garantire la disponibilità prima del controllo -->
-    <script src="device_detector.js"></script>
-    <style>
-        /* Variabili generali definite in global.css */
+<html>
+  <head>
+    <link rel="preconnect" href="https://fonts.gstatic.com/" crossorigin="" />
+    <link
+      rel="stylesheet"
+      as="style"
+      onload="this.rel='stylesheet'"
+      href="https://fonts.googleapis.com/css2?display=swap&amp;family=Noto+Sans%3Awght%40400%3B500%3B700%3B900&amp;family=Plus+Jakarta+Sans%3Awght%40400%3B500%3B700%3B800"
+    />
 
-        body {
-            background: none;
-            position: relative;
-            height: 100vh;
-            margin: 0;
-            padding: 0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            color: var(--text-dark);
-            overflow: auto;
-        }
-        
-        body::before {
-            content: "";
-            background: url("foto1.PNG") center center / cover no-repeat;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: -1;
-            animation: fadeIn 1.2s ease-out;
-        }
+    <title>Stitch Design</title>
+    <link rel="icon" type="image/x-icon" href="data:image/x-icon;base64," />
 
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-        
-        .container {
-            max-width: 95%;
-            width: 1200px;
-            padding: 20px;
-            border-radius: var(--border-radius);
-            background-color: var(--background-medium);
-            backdrop-filter: blur(35px);
-            margin: 0;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
-            animation: slideUp 0.7s cubic-bezier(0.165, 0.84, 0.44, 1);
-            height: auto;
-            min-height: 85vh;
-            display: flex;
-            flex-direction: column;
-            border: 1px solid rgba(255, 255, 255, 0.18);
-        }
-
-        @keyframes slideUp {
-            from { transform: translateY(30px); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
-        }
-        
-        .container h2 {
-            text-align: center;
-            margin: 0 0 20px 0;
-            color: var(--text-dark);
-            text-shadow: 1px 1px 3px var(--shadow-color);
-            font-size: 1.8rem;
-            font-weight: 700;
-            letter-spacing: 0.5px;
-            position: relative;
-            padding-bottom: 8px;
-        }
-        
-        .container h2::after {
-            content: "";
-            position: absolute;
-            width: 60px;
-            height: 3px;
-            background: linear-gradient(90deg, transparent, var(--primary-color), transparent);
-            bottom: 0;
-            left: 50%;
-            transform: translateX(-50%);
-            border-radius: 2px;
-        }
-        
-        .button {
-            background: linear-gradient(145deg, var(--primary-light), var(--primary-color));
-            box-shadow: 3px 3px 6px var(--shadow-color);
-            color: var(--text-light);
-            padding: 10px 20px;
-            border: none;
-            border-radius: calc(var(--border-radius) / 1.5);
-            cursor: pointer;
-            font-weight: bold;
-            font-size: 14px;
-            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .button::before {
-            content: "";
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(255, 255, 255, 0.1);
-            transform: translateX(-100%);
-            transition: transform 0.4s ease;
-        }
-        
-        .button:hover {
-            background: linear-gradient(145deg, var(--primary-color), var(--primary-dark));
-            transform: translateY(-3px) scale(1.02);
-            box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2);
-        }
-        
-        .button:hover::before {
-            transform: translateX(100%);
-        }
-        
-        .button:active {
-            transform: translateY(0) scale(0.98);
-            box-shadow: 0 2px 6px var(--shadow-color);
-        }
-
-        .dashboard {
-            display: flex;
-            gap: 20px;
-            flex: 1;
-            overflow: visible;
-            flex-direction: row;
-            max-height: none;
-            animation: fadeInStaggered 0.8s ease forwards;
-        }
-        
-        @keyframes fadeInStaggered {
-            from { opacity: 0; transform: translateY(15px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        
-        .card {
-            background: var(--background-light);
-            border-radius: var(--border-radius);
-            padding: 20px;
-            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
-            display: flex;
-            flex-direction: column;
-            overflow: visible;
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-        }
-        
-        .card:hover {
-            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
-            transform: translateY(-5px);
-        }
-        
-        .card:first-child {
-            flex: 1;
-            min-width: 400px;
-            animation-delay: 0.1s;
-        }
-        
-        .card:last-child {
-            flex: 1;
-            animation-delay: 0.2s;
-        }
-        
-        .card-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
-            border-bottom: 1px solid rgba(255, 192, 203, 0.3);
-            padding-bottom: 10px;
-            position: relative;
-        }
-        
-        .card-header::after {
-            content: "";
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            width: 40px;
-            height: 3px;
-            background: linear-gradient(90deg, var(--primary-color), transparent);
-            border-radius: 1.5px;
-        }
-
-        .card-title {
-            font-size: 1.2rem;
-            color: var(--primary-dark);
-            margin: 0;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .card-title i {
-            color: var(--primary-color);
-            animation: pulse 2s infinite;
-        }
-        
-        @keyframes pulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.1); }
-            100% { transform: scale(1); }
-        }
-        
-        .calendar-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
-            background: rgba(255, 255, 255, 0.8);
-            padding: 10px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-        }
-        
-        .calendar-header:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
-        }
-        
-        .calendar-nav {
-            display: flex;
-            align-items: center;
-        }
-        
-        .calendar-nav button {
-            background: linear-gradient(145deg, var(--primary-light), var(--primary-color));
-            border: none;
-            font-size: 16px;
-            color: white;
-            cursor: pointer;
-            padding: 8px;
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .calendar-nav button::after {
-            content: "";
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: radial-gradient(circle, rgba(255,255,255,0.3) 0%, transparent 70%);
-            opacity: 0;
-            transition: opacity 0.4s ease;
-        }
-        
-        .calendar-nav button:hover {
-            background: linear-gradient(145deg, var(--primary-color), var(--primary-dark));
-            transform: scale(1.15) rotate(2deg);
-            box-shadow: 0 5px 10px rgba(0, 0, 0, 0.2);
-        }
-        
-        .calendar-nav button:hover::after {
-            opacity: 1;
-        }
-        
-        .calendar-nav button:active {
-            transform: scale(0.95);
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
-        }
-        
-        .current-month {
-            font-size: 18px;
-            font-weight: bold;
-            margin: 0 15px;
-            color: var(--text-dark);
-            min-width: 140px;
-            text-align: center;
-            text-shadow: 1px 1px 2px rgba(0,0,0,0.05);
-            transition: letter-spacing 0.3s ease;
-        }
-        
-        .calendar-nav:hover .current-month {
-            letter-spacing: 0.5px;
-        }
-        
-        .calendar-grid {
-            display: grid;
-            grid-template-columns: repeat(7, 1fr);
-            gap: 10px;
-            margin: 10px 0 15px;
-            padding: 15px;
-            background: rgba(255, 255, 255, 0.8);
-            border-radius: 10px;
-            box-shadow: 0 2px 15px rgba(0, 0, 0, 0.08);
-            flex: 1;
-            overflow: visible;
-            min-height: 260px;
-            scrollbar-width: thin;
-            scrollbar-color: rgba(255, 105, 180, 0.5) rgba(255, 255, 255, 0.4);
-            grid-auto-rows: minmax(40px, auto);
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-        }
-        
-        .calendar-grid:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
-        }
-        
-        .calendar-grid::-webkit-scrollbar {
-            width: 6px;
-        }
-        
-        .calendar-grid::-webkit-scrollbar-track {
-            background: rgba(255, 255, 255, 0.4);
-            border-radius: 10px;
-            margin: 5px 0;
-        }
-        
-        .calendar-grid::-webkit-scrollbar-thumb {
-            background: rgba(255, 105, 180, 0.5);
-            border-radius: 10px;
-        }
-        
-        .calendar-grid::-webkit-scrollbar-thumb:hover {
-            background: rgba(255, 105, 180, 0.7);
-        }
-        
-        .day-name {
-            text-align: center;
-            font-weight: bold;
-            padding: 8px 0;
-            color: var(--primary-dark);
-            font-size: 0.9rem;
-            text-transform: uppercase;
-            margin-bottom: 5px;
-            background: rgba(255, 255, 255, 0.6);
-            border-radius: 8px;
-            width: 100%;
-            box-sizing: border-box;
-            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
-            transition: transform 0.3s ease, background-color 0.3s ease;
-        }
-        
-        .day-name:hover {
-            background: rgba(255, 255, 255, 0.8);
-            transform: translateY(-2px);
-        }
-        
-        .day {
-            aspect-ratio: 1 / 1;
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            font-weight: 500;
-            position: relative;
-            border: 2px solid transparent;
-            font-size: 1.1rem;
-            background: white;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-            min-height: 40px;
-            min-width: 40px;
-            box-sizing: border-box;
-            padding: 2px;
-            margin: 2px;
-            overflow: hidden;
-        }
-
-        .day::before {
-            content: "";
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: radial-gradient(circle, rgba(255,182,193,0.4) 0%, transparent 70%);
-            opacity: 0;
-            transition: opacity 0.4s ease;
-            pointer-events: none;
-        }
-
-        .day:hover:not(.disabled):not(.empty) {
-            background-color: rgba(255,192,203,0.4);
-            border: 2px solid var(--primary-color);
-            transform: translateY(-3px) scale(1.05);
-            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
-            z-index: 2;
-        }
-
-        .day:hover:not(.disabled):not(.empty)::before {
-            opacity: 1;
-        }
-
-        .day.selected {
-            background-color: var(--primary-color);
-            color: white;
-            font-weight: bold;
-            transform: scale(1.08);
-            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
-            z-index: 3;
-        }
-
-        .day.today {
-            border: 2px solid var(--primary-color);
-            font-weight: bold;
-            background-color: rgba(255,192,203,0.15);
-            animation: todayPulse 2s infinite;
-        }
-
-        @keyframes todayPulse {
-            0% { box-shadow: 0 0 0 0 rgba(255, 105, 180, 0.4); }
-            70% { box-shadow: 0 0 0 10px rgba(255, 105, 180, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(255, 105, 180, 0); }
-        }
-
-        .day.has-slots {
-            background-color: rgba(255,192,203,0.3);
-            position: relative;
-            font-weight: bold;
-        }
-
-        .day.has-slots::after {
-            content: "";
-            position: absolute;
-            bottom: 4px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 6px;
-            height: 6px;
-            border-radius: 50%;
-            background-color: var(--primary-dark);
-            box-shadow: 0 0 5px rgba(230, 0, 126, 0.5);
-            animation: dotPulse 1.5s infinite;
-        }
-
-        @keyframes dotPulse {
-            0% { transform: translateX(-50%) scale(1); opacity: 1; }
-            50% { transform: translateX(-50%) scale(1.3); opacity: 0.7; }
-            100% { transform: translateX(-50%) scale(1); opacity: 1; }
-        }
-
-        .form-row {
-            display: flex;
-            gap: 15px;
-            margin-bottom: 10px;
-        }
-        
-        .form-group {
-            margin-bottom: 10px;
-            flex: 1;
-        }
-        
-        .form-group label {
-            display: block;
-            margin-bottom: 5px;
-            color: var(--text-dark);
-            font-weight: 500;
-            font-size: 0.9rem;
-        }
-        
-        .form-group input, .form-group textarea {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: var(--border-radius);
-            box-sizing: border-box;
-            font-size: 1rem;
-            transition: border-color var(--transition-speed), box-shadow var(--transition-speed);
-        }
-
-        .form-group input:focus, .form-group textarea:focus {
-            border-color: var(--primary-color);
-            box-shadow: 0 0 0 3px rgba(255, 105, 180, 0.25);
-            outline: none;
-        }
-        
-        .time-inputs {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-        }
-        
-        .time-inputs input {
-            flex: 1;
-        }
-        
-        .time-inputs span {
-            font-weight: bold;
-            color: var(--text-dark);
-        }
-        
-        .form-section button {
-            width: 100%;
-            padding: 12px;
-            background: linear-gradient(145deg, var(--primary-light), var(--primary-color));
-            color: white;
-            border: none;
-            border-radius: calc(var(--border-radius) / 2);
-            font-size: 1rem;
-            font-weight: bold;
-            cursor: pointer;
-            transition: all var(--transition-speed) ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-            margin-top: 10px;
-        }
-        
-        .form-section button:hover {
-            background: linear-gradient(145deg, var(--primary-color), var(--primary-dark));
-            transform: translateY(-2px);
-            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
-        }
-
-        .table-container {
-            flex: 1;
-            overflow-y: auto;
-            border-radius: var(--border-radius);
-            box-shadow: inset 0 0 10px rgba(0,0,0,0.05);
-            background-color: rgba(255,255,255,0.7);
-            scrollbar-width: thin;
-            scrollbar-color: var(--primary-light) transparent;
-            max-height: calc(100% - 60px);
-        }
-
-        .table-container::-webkit-scrollbar {
-            width: 6px;
-            height: 6px;
-        }
-
-        .table-container::-webkit-scrollbar-track {
-            background: transparent;
-        }
-
-        .table-container::-webkit-scrollbar-thumb {
-            background-color: var(--primary-light);
-            border-radius: 20px;
-        }
-        
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            border-spacing: 0;
-            background: transparent;
-        }
-        
-        thead th {
-            position: sticky;
-            top: 0;
-            z-index: 1;
-            background: linear-gradient(to bottom, var(--primary-color) 60%, var(--primary-light) 100%);
-            color: var(--text-light);
-            padding: 12px 10px;
-            text-align: center;
-            font-size: 0.9rem;
-            letter-spacing: 0.5px;
-            text-transform: uppercase;
-            border: none;
-        }
-
-        thead th:first-child {
-            border-top-left-radius: var(--border-radius);
-        }
-
-        thead th:last-child {
-            border-top-right-radius: var(--border-radius);
-        }
-        
-        tbody td {
-            padding: 12px 10px;
-            text-align: center;
-            background: rgba(255, 255, 255, 0.6);
-            border: none;
-            border-bottom: 1px solid rgba(255,192,203,0.4);
-            font-size: 0.95rem;
-            transition: background-color var(--transition-speed);
-        }
-        
-        tbody tr:hover td {
-            background: rgba(255,192,203,0.3);
-        }
-
-        .delete-btn {
-            background-color: #e74c3c;
-            color: white;
-            border: none;
-            padding: 8px 14px;
-            border-radius: 6px;
-            cursor: pointer;
-            transition: all var(--transition-speed);
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            margin: 0 auto;
-            font-size: 0.85rem;
-        }
-        
-        .delete-btn:hover {
-            background-color: #c0392b;
-            transform: scale(1.05);
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-        }
-        
-        .selected-date-container {
-            margin-bottom: 15px;
-        }
-        
-        .selected-date {
-            font-size: 1.2rem;
-            font-weight: bold;
-            margin-bottom: 10px;
-            color: var(--text-dark);
-            text-align: center;
-            background-color: rgba(255,255,255,0.8);
-            padding: 10px;
-            border-radius: calc(var(--border-radius) / 2);
-            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-        }
-        
-        .toast {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background-color: #4CAF50;
-            color: white;
-            padding: 12px 20px;
-            border-radius: var(--border-radius);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-            display: flex;
-            align-items: center;
-            z-index: 1100;
-            transform: translateX(150%);
-            transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            min-width: 300px;
-        }
-        
-        .toast.show {
-            transform: translateX(0);
-        }
-        
-        .toast-error {
-            background-color: #f44336;
-        }
-        
-        .toast .icon {
-            margin-right: 15px;
-            font-size: 20px;
-        }
-
-        .footer-area {
-            text-align: center;
-            margin-top: 20px;
-            padding-top: 10px;
-            border-top: 1px solid rgba(255,255,255,0.3);
-        }
-        
-        textarea {
-            resize: none;
-            height: 60px;
-        }
-
-        /* Stili per AI Assistant - Inline per compatibilità */
-        .ai-assistant-container {
-            position: fixed !important;
-            bottom: 20px !important;
-            right: 20px !important;
-            z-index: 9999 !important;
-        }
-        
-        .ai-assistant-button {
-            width: 60px !important;
-            height: 60px !important;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%) !important;
-            color: white !important;
-            border-radius: 50% !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            cursor: pointer !important;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3) !important;
-            transition: all 0.3s ease !important;
-            font-size: 18px !important;
-            border: none !important;
-            pointer-events: auto !important;
-        }
-        
-        .ai-assistant-chatbox {
-            position: fixed !important;
-            bottom: 90px !important;
-            right: 20px !important;
-            width: 350px !important;
-            height: 450px !important;
-            background: white !important;
-            border-radius: 12px !important;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3) !important;
-            display: none !important;
-            flex-direction: column !important;
-            overflow: hidden !important;
-            border: 1px solid #e0e0e0 !important;
-        }
-        
-        .ai-assistant-chatbox.active {
-            display: flex !important;
-        }
-        
-        .ai-assistant-header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%) !important;
-            color: white !important;
-            padding: 15px 20px !important;
-            display: flex !important;
-            justify-content: space-between !important;
-            align-items: center !important;
-        }
-        
-        .ai-assistant-header-title {
-            display: flex !important;
-            align-items: center !important;
-            font-weight: 600 !important;
-        }
-        
-        .ai-assistant-close {
-            background: none !important;
-            border: none !important;
-            color: white !important;
-            font-size: 20px !important;
-            cursor: pointer !important;
-            padding: 5px !important;
-        }
-        
-        .ai-assistant-messages {
-            flex: 1 !important;
-            padding: 15px !important;
-            overflow-y: auto !important;
-            display: flex !important;
-            flex-direction: column !important;
-            gap: 12px !important;
-            background: #f8f9fa !important;
-        }
-        
-        .ai-assistant-message {
-            max-width: 80% !important;
-            padding: 10px 15px !important;
-            border-radius: 15px !important;
-            font-size: 14px !important;
-            line-height: 1.4 !important;
-        }
-        
-        .ai-assistant-message.user {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%) !important;
-            color: white !important;
-            align-self: flex-end !important;
-        }
-        
-        .ai-assistant-message.bot {
-            background: white !important;
-            color: #333 !important;
-            align-self: flex-start !important;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
-            border: 1px solid #e0e0e0 !important;
-        }
-        
-        .ai-assistant-suggestions {
-            padding: 10px 15px !important;
-            display: flex !important;
-            flex-wrap: wrap !important;
-            gap: 8px !important;
-            border-top: 1px solid #e0e0e0 !important;
-            background: #f8f9fa !important;
-        }
-        
-        .ai-assistant-suggestion {
-            background: rgba(102, 126, 234, 0.1) !important;
-            color: #667eea !important;
-            padding: 6px 12px !important;
-            border-radius: 15px !important;
-            font-size: 13px !important;
-            cursor: pointer !important;
-            border: 1px solid rgba(102, 126, 234, 0.3) !important;
-        }
-        
-        .ai-assistant-input-container {
-            display: flex !important;
-            padding: 15px !important;
-            gap: 10px !important;
-            border-top: 1px solid #e0e0e0 !important;
-            background: white !important;
-        }
-        
-        .ai-assistant-input {
-            flex: 1 !important;
-            padding: 10px 15px !important;
-            border: 1px solid #ddd !important;
-            border-radius: 20px !important;
-            font-size: 14px !important;
-            outline: none !important;
-        }
-        
-        .ai-assistant-send {
-            width: 40px !important;
-            height: 40px !important;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%) !important;
-            border: none !important;
-            border-radius: 50% !important;
-            cursor: pointer !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-        }
-        
-        .ai-assistant-typing {
-            display: flex !important;
-            align-items: center !important;
-            gap: 5px !important;
-            padding: 10px 15px !important;
-            background: white !important;
-            border-radius: 15px !important;
-            align-self: flex-start !important;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
-        }
-        
-        .ai-assistant-typing-dot {
-            width: 8px !important;
-            height: 8px !important;
-            background: #667eea !important;
-            border-radius: 50% !important;
-            animation: ai-typing-bounce 1.4s infinite ease-in-out !important;
-        }
-        
-        @keyframes ai-typing-bounce {
-            0%, 80%, 100% { transform: scale(0.8); opacity: 0.5; }
-            40% { transform: scale(1.2); opacity: 1; }
-        }
-
-        @media (max-width: 768px) {
-            .dashboard {
-                flex-direction: column;
-                gap: 15px;
-            }
-            
-            .card:first-child,
-            .card:last-child {
-                flex: auto;
-                min-width: 100%;
-            }
-            
-            .card {
-                max-height: none;
-            }
-            
-            .form-row {
-                flex-direction: column;
-                gap: 0;
-            }
-            
-            .calendar-grid {
-                min-height: 200px;
-                gap: 5px;
-            }
-            
-            .day {
-                font-size: 0.9rem;
-                min-height: 35px;
-            }
-            
-            .form-section {
-                padding: 10px;
-            }
-            
-            .form-group input, 
-            .form-group textarea {
-                padding: 8px;
-            }
-            
-            .container {
-                height: auto;
-                min-height: 90vh;
-                padding: 15px;
-            }
-            
-            .table-container {
-                max-height: 300px;
-            }
-            
-            .container h2 {
-                font-size: 1.4rem;
-                margin-bottom: 15px;
-            }
-        }
-
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0,0,0,0.5);
-            z-index: 1000;
-            justify-content: center;
-            align-items: center;
-        }
-        
-        .modal-content {
-            background: white;
-            padding: 25px;
-            border-radius: var(--border-radius);
-            width: 90%;
-            max-width: 450px;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.2);
-            position: relative;
-            transform: translateY(-20px);
-            opacity: 0;
-            transition: all var(--transition-speed) ease;
-        }
-        
-        .modal.open .modal-content {
-            transform: translateY(0);
-            opacity: 1;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h2><i class="fas fa-calendar-alt"></i> Gestione Disponibilità</h2>
-        
-        <div class="dashboard">
-            <div class="card">
-                <div class="card-header">
-                    <h3 class="card-title"><i class="fas fa-calendar-week"></i> Calendario</h3>
-                    <div class="calendar-nav">
-                        <button id="prevMonth"><i class="fas fa-chevron-left"></i></button>
-                        <div class="current-month" id="currentMonth">Aprile 2025</div>
-                        <button id="nextMonth"><i class="fas fa-chevron-right"></i></button>
-                    </div>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  </head>
+  <body>
+    <div class="relative flex size-full min-h-screen flex-col bg-white group/design-root overflow-x-hidden" style='font-family: "Plus Jakarta Sans", "Noto Sans", sans-serif;'>
+      <div class="layout-container flex h-full grow flex-col">
+        <div class="gap-1 px-6 flex flex-1 justify-center py-5">
+          <div class="layout-content-container flex flex-col w-80">
+            <div class="flex h-full min-h-[700px] flex-col justify-between bg-white p-4">
+              <div class="flex flex-col gap-4">
+                <div class="flex flex-col">
+                  <h1 class="text-[#181114] text-base font-medium leading-normal">Luxe Nails</h1>
+                  <p class="text-[#8a6075] text-sm font-normal leading-normal">Admin</p>
                 </div>
-                
-                <div class="calendar-grid" id="calendarGrid">
-                    <div class="day-name">Lu</div>
-                    <div class="day-name">Ma</div>
-                    <div class="day-name">Me</div>
-                    <div class="day-name">Gi</div>
-                    <div class="day-name">Ve</div>
-                    <div class="day-name">Sa</div>
-                    <div class="day-name">Do</div>
+                <div class="flex flex-col gap-2">
+                  <div class="flex items-center gap-3 px-3 py-2">
+                    <div class="text-[#181114]" data-icon="House" data-size="24px" data-weight="regular">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="24px" height="24px" fill="currentColor" viewBox="0 0 256 256">
+                        <path
+                          d="M218.83,103.77l-80-75.48a1.14,1.14,0,0,1-.11-.11,16,16,0,0,0-21.53,0l-.11.11L37.17,103.77A16,16,0,0,0,32,115.55V208a16,16,0,0,0,16,16H96a16,16,0,0,0,16-16V160h32v48a16,16,0,0,0,16,16h48a16,16,0,0,0,16-16V115.55A16,16,0,0,0,218.83,103.77ZM208,208H160V160a16,16,0,0,0-16-16H112a16,16,0,0,0-16,16v48H48V115.55l.11-.1L128,40l79.9,75.43.11.1Z"
+                        ></path>
+                      </svg>
+                    </div>
+                    <p class="text-[#181114] text-sm font-medium leading-normal">Dashboard</p>
+                  </div>
+                  <div class="flex items-center gap-3 px-3 py-2 rounded-full bg-[#f5f0f2]">
+                    <div class="text-[#181114]" data-icon="Calendar" data-size="24px" data-weight="fill">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="24px" height="24px" fill="currentColor" viewBox="0 0 256 256">
+                        <path
+                          d="M208,32H184V24a8,8,0,0,0-16,0v8H88V24a8,8,0,0,0-16,0v8H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32ZM112,184a8,8,0,0,1-16,0V132.94l-4.42,2.22a8,8,0,0,1-7.16-14.32l16-8A8,8,0,0,1,112,120Zm56-8a8,8,0,0,1,0,16H136a8,8,0,0,1-6.4-12.8l28.78-38.37A8,8,0,1,0,145.07,132a8,8,0,1,1-13.85-8A24,24,0,0,1,176,136a23.76,23.76,0,0,1-4.84,14.45L152,176ZM48,80V48H72v8a8,8,0,0,0,16,0V48h80v8a8,8,0,0,0,16,0V48h24V80Z"
+                        ></path>
+                      </svg>
+                    </div>
+                    <p class="text-[#181114] text-sm font-medium leading-normal">Appointments</p>
+                  </div>
+                  <div class="flex items-center gap-3 px-3 py-2">
+                    <div class="text-[#181114]" data-icon="Users" data-size="24px" data-weight="regular">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="24px" height="24px" fill="currentColor" viewBox="0 0 256 256">
+                        <path
+                          d="M117.25,157.92a60,60,0,1,0-66.5,0A95.83,95.83,0,0,0,3.53,195.63a8,8,0,1,0,13.4,8.74,80,80,0,0,1,134.14,0,8,8,0,0,0,13.4-8.74A95.83,95.83,0,0,0,117.25,157.92ZM40,108a44,44,0,1,1,44,44A44.05,44.05,0,0,1,40,108Zm210.14,98.7a8,8,0,0,1-11.07-2.33A79.83,79.83,0,0,0,172,168a8,8,0,0,1,0-16,44,44,0,1,0-16.34-84.87,8,8,0,1,1-5.94-14.85,60,60,0,0,1,55.53,105.64,95.83,95.83,0,0,1,47.22,37.71A8,8,0,0,1,250.14,206.7Z"
+                        ></path>
+                      </svg>
+                    </div>
+                    <p class="text-[#181114] text-sm font-medium leading-normal">Clients</p>
+                  </div>
+                  <div class="flex items-center gap-3 px-3 py-2">
+                    <div class="text-[#181114]" data-icon="Scissors" data-size="24px" data-weight="regular">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="24px" height="24px" fill="currentColor" viewBox="0 0 256 256">
+                        <path
+                          d="M157.73,113.13A8,8,0,0,1,159.82,102L227.48,55.7a8,8,0,0,1,9,13.21l-67.67,46.3a7.92,7.92,0,0,1-4.51,1.4A8,8,0,0,1,157.73,113.13Zm80.87,85.09a8,8,0,0,1-11.12,2.08L136,137.7,93.49,166.78a36,36,0,1,1-9-13.19L121.83,128,84.44,102.41a35.86,35.86,0,1,1,9-13.19l143,97.87A8,8,0,0,1,238.6,198.22ZM80,180a20,20,0,1,0-5.86,14.14A19.85,19.85,0,0,0,80,180ZM74.14,90.13a20,20,0,1,0-28.28,0A19.85,19.85,0,0,0,74.14,90.13Z"
+                        ></path>
+                      </svg>
+                    </div>
+                    <p class="text-[#181114] text-sm font-medium leading-normal">Services</p>
+                  </div>
+                  <div class="flex items-center gap-3 px-3 py-2">
+                    <div class="text-[#181114]" data-icon="Gear" data-size="24px" data-weight="regular">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="24px" height="24px" fill="currentColor" viewBox="0 0 256 256">
+                        <path
+                          d="M128,80a48,48,0,1,0,48,48A48.05,48.05,0,0,0,128,80Zm0,80a32,32,0,1,1,32-32A32,32,0,0,1,128,160Zm88-29.84q.06-2.16,0-4.32l14.92-18.64a8,8,0,0,0,1.48-7.06,107.21,107.21,0,0,0-10.88-26.25,8,8,0,0,0-6-3.93l-23.72-2.64q-1.48-1.56-3-3L186,40.54a8,8,0,0,0-3.94-6,107.71,107.71,0,0,0-26.25-10.87,8,8,0,0,0-7.06,1.49L130.16,40Q128,40,125.84,40L107.2,25.11a8,8,0,0,0-7.06-1.48A107.6,107.6,0,0,0,73.89,34.51a8,8,0,0,0-3.93,6L67.32,64.27q-1.56,1.49-3,3L40.54,70a8,8,0,0,0-6,3.94,107.71,107.71,0,0,0-10.87,26.25,8,8,0,0,0,1.49,7.06L40,125.84Q40,128,40,130.16L25.11,148.8a8,8,0,0,0-1.48,7.06,107.21,107.21,0,0,0,10.88,26.25,8,8,0,0,0,6,3.93l23.72,2.64q1.49,1.56,3,3L70,215.46a8,8,0,0,0,3.94,6,107.71,107.71,0,0,0,26.25,10.87,8,8,0,0,0,7.06-1.49L125.84,216q2.16.06,4.32,0l18.64,14.92a8,8,0,0,0,7.06,1.48,107.21,107.21,0,0,0,26.25-10.88,8,8,0,0,0,3.93-6l2.64-23.72q1.56-1.48,3-3L215.46,186a8,8,0,0,0,6-3.94,107.71,107.71,0,0,0,10.87-26.25,8,8,0,0,0-1.49-7.06Zm-16.1-6.5a73.93,73.93,0,0,1,0,8.68,8,8,0,0,0,1.74,5.48l14.19,17.73a91.57,91.57,0,0,1-6.23,15L187,173.11a8,8,0,0,0-5.1,2.64,74.11,74.11,0,0,1-6.14,6.14,8,8,0,0,0-2.64,5.1l-2.51,22.58a91.32,91.32,0,0,1-15,6.23l-17.74-14.19a8,8,0,0,0-5-1.75h-.48a73.93,73.93,0,0,1-8.68,0,8,8,0,0,0-5.48,1.74L100.45,215.8a91.57,91.57,0,0,1-15-6.23L82.89,187a8,8,0,0,0-2.64-5.1,74.11,74.11,0,0,1-6.14-6.14,8,8,0,0,0-5.1-2.64L46.43,170.6a91.32,91.32,0,0,1-6.23-15l14.19-17.74a8,8,0,0,0,1.74-5.48,73.93,73.93,0,0,1,0-8.68,8,8,0,0,0-1.74-5.48L40.2,100.45a91.57,91.57,0,0,1,6.23-15L69,82.89a8,8,0,0,0,5.1-2.64,74.11,74.11,0,0,1,6.14-6.14A8,8,0,0,0,82.89,69L85.4,46.43a91.32,91.32,0,0,1,15-6.23l17.74,14.19a8,8,0,0,0,5.48,1.74,73.93,73.93,0,0,1,8.68,0,8,8,0,0,0,5.48-1.74L155.55,40.2a91.57,91.57,0,0,1,15,6.23L173.11,69a8,8,0,0,0,2.64,5.1,74.11,74.11,0,0,1,6.14,6.14,8,8,0,0,0,5.1,2.64l22.58,2.51a91.32,91.32,0,0,1,6.23,15l-14.19,17.74A8,8,0,0,0,199.87,123.66Z"
+                        ></path>
+                      </svg>
+                    </div>
+                    <p class="text-[#181114] text-sm font-medium leading-normal">Settings</p>
+                  </div>
                 </div>
-                
-                <div class="calendar-legend">
-                    <div class="legend-item">
-                        <div class="legend-marker legend-today"></div>
-                        <span>Oggi</span>
-                    </div>
-                    <div class="legend-item">
-                        <div class="legend-marker legend-selected"></div>
-                        <span>Selezionato</span>
-                    </div>
-                    <div class="legend-item">
-                        <div class="legend-marker legend-has-slots"></div>
-                        <span>Con disponibilità</span>
-                    </div>
-                </div>
-                
-                <div class="form-section">
-                    <h3><i class="fas fa-plus-circle"></i> Nuova Disponibilità</h3>
-                    
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="data"><i class="fas fa-calendar"></i> Data</label>
-                            <input type="date" id="data" required>
-                        </div>
-                    </div>
-                    
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label><i class="fas fa-clock"></i> Fascia oraria</label>
-                            <div class="time-inputs">
-                                <input type="time" id="orarioInizio" required placeholder="Inizio">
-                                <span>-</span>
-                                <input type="time" id="orarioFine" required placeholder="Fine">
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="descrizione"><i class="fas fa-file-alt"></i> Descrizione</label>
-                            <textarea id="descrizione" placeholder="Descrivi il tipo di prestazione" rows="2" required></textarea>
-                        </div>
-                    </div>
-                    
-                    <button id="aggiungiDisponibilita"><i class="fas fa-plus"></i> Aggiungi disponibilità</button>
-                </div>
+              </div>
             </div>
-            
-            <div class="card">
-                <div class="card-header">
-                    <h3 class="card-title"><i class="fas fa-list"></i> Disponibilità</h3>
-                    <div class="selected-date" id="selectedDate">Disponibilità correnti</div>
-                </div>
-                
-                <div class="table-container">
-                    <table id="tabellaDisponibilita">
-                        <thead>
-                            <tr>
-                                <th>Data</th>
-                                <th>Orario</th>
-                                <th>Descrizione</th>
-                                <th>Azioni</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                        </tbody>
-                    </table>
-                </div>
+          </div>
+          <div class="layout-content-container flex flex-col max-w-[960px] flex-1">
+            <div class="flex flex-wrap justify-between gap-3 p-4">
+              <p class="text-[#181114] tracking-light text-[32px] font-bold leading-tight min-w-72">Appointments</p>
+              <button
+                class="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-full h-8 px-4 bg-[#f5f0f2] text-[#181114] text-sm font-medium leading-normal"
+              >
+                <span class="truncate">Add Appointment</span>
+              </button>
             </div>
+            <div class="px-4 py-3">
+              <label class="flex flex-col min-w-40 h-12 w-full">
+                <div class="flex w-full flex-1 items-stretch rounded-xl h-full">
+                  <div
+                    class="text-[#8a6075] flex border-none bg-[#f5f0f2] items-center justify-center pl-4 rounded-l-xl border-r-0"
+                    data-icon="MagnifyingGlass"
+                    data-size="24px"
+                    data-weight="regular"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24px" height="24px" fill="currentColor" viewBox="0 0 256 256">
+                      <path
+                        d="M229.66,218.34l-50.07-50.06a88.11,88.11,0,1,0-11.31,11.31l50.06,50.07a8,8,0,0,0,11.32-11.32ZM40,112a72,72,0,1,1,72,72A72.08,72.08,0,0,1,40,112Z"
+                      ></path>
+                    </svg>
+                  </div>
+                  <input
+                    placeholder="Search appointments"
+                    class="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-xl text-[#181114] focus:outline-0 focus:ring-0 border-none bg-[#f5f0f2] focus:border-none h-full placeholder:text-[#8a6075] px-4 rounded-l-none border-l-0 pl-2 text-base font-normal leading-normal"
+                    value=""
+                  />
+                </div>
+              </label>
+            </div>
+            <div class="pb-3">
+              <div class="flex border-b border-[#e6dbe0] px-4 gap-8">
+                <a class="flex flex-col items-center justify-center border-b-[3px] border-b-[#181114] text-[#181114] pb-[13px] pt-4" href="#">
+                  <p class="text-[#181114] text-sm font-bold leading-normal tracking-[0.015em]">Upcoming</p>
+                </a>
+                <a class="flex flex-col items-center justify-center border-b-[3px] border-b-transparent text-[#8a6075] pb-[13px] pt-4" href="#">
+                  <p class="text-[#8a6075] text-sm font-bold leading-normal tracking-[0.015em]">Completed</p>
+                </a>
+                <a class="flex flex-col items-center justify-center border-b-[3px] border-b-transparent text-[#8a6075] pb-[13px] pt-4" href="#">
+                  <p class="text-[#8a6075] text-sm font-bold leading-normal tracking-[0.015em]">Cancelled</p>
+                </a>
+              </div>
+            </div>
+            <div class="px-4 py-3 @container">
+              <div class="flex overflow-hidden rounded-xl border border-[#e6dbe0] bg-white">
+                <table class="flex-1">
+                  <thead>
+                    <tr class="bg-white">
+                      <th class="table-d159d7a3-a912-4962-8b99-57ca41fd6e5d-column-120 px-4 py-3 text-left text-[#181114] w-[400px] text-sm font-medium leading-normal">Client</th>
+                      <th class="table-d159d7a3-a912-4962-8b99-57ca41fd6e5d-column-240 px-4 py-3 text-left text-[#181114] w-[400px] text-sm font-medium leading-normal">Service</th>
+                      <th class="table-d159d7a3-a912-4962-8b99-57ca41fd6e5d-column-360 px-4 py-3 text-left text-[#181114] w-[400px] text-sm font-medium leading-normal">Date</th>
+                      <th class="table-d159d7a3-a912-4962-8b99-57ca41fd6e5d-column-480 px-4 py-3 text-left text-[#181114] w-[400px] text-sm font-medium leading-normal">Time</th>
+                      <th class="table-d159d7a3-a912-4962-8b99-57ca41fd6e5d-column-600 px-4 py-3 text-left text-[#181114] w-60 text-sm font-medium leading-normal">Status</th>
+                      <th class="table-d159d7a3-a912-4962-8b99-57ca41fd6e5d-column-720 px-4 py-3 text-left text-[#181114] w-60 text-[#8a6075] text-sm font-medium leading-normal">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr class="border-t border-t-[#e6dbe0]">
+                      <td class="table-d159d7a3-a912-4962-8b99-57ca41fd6e5d-column-120 h-[72px] px-4 py-2 w-[400px] text-[#181114] text-sm font-normal leading-normal">
+                        Sophia Clark
+                      </td>
+                      <td class="table-d159d7a3-a912-4962-8b99-57ca41fd6e5d-column-240 h-[72px] px-4 py-2 w-[400px] text-[#8a6075] text-sm font-normal leading-normal">Manicure</td>
+                      <td class="table-d159d7a3-a912-4962-8b99-57ca41fd6e5d-column-360 h-[72px] px-4 py-2 w-[400px] text-[#8a6075] text-sm font-normal leading-normal">
+                        2024-07-20
+                      </td>
+                      <td class="table-d159d7a3-a912-4962-8b99-57ca41fd6e5d-column-480 h-[72px] px-4 py-2 w-[400px] text-[#8a6075] text-sm font-normal leading-normal">10:00 AM</td>
+                      <td class="table-d159d7a3-a912-4962-8b99-57ca41fd6e5d-column-600 h-[72px] px-4 py-2 w-60 text-sm font-normal leading-normal">
+                        <button
+                          class="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-full h-8 px-4 bg-[#f5f0f2] text-[#181114] text-sm font-medium leading-normal w-full"
+                        >
+                          <span class="truncate">Scheduled</span>
+                        </button>
+                      </td>
+                      <td class="table-d159d7a3-a912-4962-8b99-57ca41fd6e5d-column-720 h-[72px] px-4 py-2 w-60 text-[#8a6075] text-sm font-bold leading-normal tracking-[0.015em]">
+                        View
+                      </td>
+                    </tr>
+                    <tr class="border-t border-t-[#e6dbe0]">
+                      <td class="table-d159d7a3-a912-4962-8b99-57ca41fd6e5d-column-120 h-[72px] px-4 py-2 w-[400px] text-[#181114] text-sm font-normal leading-normal">
+                        Olivia Bennett
+                      </td>
+                      <td class="table-d159d7a3-a912-4962-8b99-57ca41fd6e5d-column-240 h-[72px] px-4 py-2 w-[400px] text-[#8a6075] text-sm font-normal leading-normal">Pedicure</td>
+                      <td class="table-d159d7a3-a912-4962-8b99-57ca41fd6e5d-column-360 h-[72px] px-4 py-2 w-[400px] text-[#8a6075] text-sm font-normal leading-normal">
+                        2024-07-20
+                      </td>
+                      <td class="table-d159d7a3-a912-4962-8b99-57ca41fd6e5d-column-480 h-[72px] px-4 py-2 w-[400px] text-[#8a6075] text-sm font-normal leading-normal">11:30 AM</td>
+                      <td class="table-d159d7a3-a912-4962-8b99-57ca41fd6e5d-column-600 h-[72px] px-4 py-2 w-60 text-sm font-normal leading-normal">
+                        <button
+                          class="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-full h-8 px-4 bg-[#f5f0f2] text-[#181114] text-sm font-medium leading-normal w-full"
+                        >
+                          <span class="truncate">Scheduled</span>
+                        </button>
+                      </td>
+                      <td class="table-d159d7a3-a912-4962-8b99-57ca41fd6e5d-column-720 h-[72px] px-4 py-2 w-60 text-[#8a6075] text-sm font-bold leading-normal tracking-[0.015em]">
+                        View
+                      </td>
+                    </tr>
+                    <tr class="border-t border-t-[#e6dbe0]">
+                      <td class="table-d159d7a3-a912-4962-8b99-57ca41fd6e5d-column-120 h-[72px] px-4 py-2 w-[400px] text-[#181114] text-sm font-normal leading-normal">
+                        Ava Harper
+                      </td>
+                      <td class="table-d159d7a3-a912-4962-8b99-57ca41fd6e5d-column-240 h-[72px] px-4 py-2 w-[400px] text-[#8a6075] text-sm font-normal leading-normal">
+                        Manicure &amp; Pedicure
+                      </td>
+                      <td class="table-d159d7a3-a912-4962-8b99-57ca41fd6e5d-column-360 h-[72px] px-4 py-2 w-[400px] text-[#8a6075] text-sm font-normal leading-normal">
+                        2024-07-21
+                      </td>
+                      <td class="table-d159d7a3-a912-4962-8b99-57ca41fd6e5d-column-480 h-[72px] px-4 py-2 w-[400px] text-[#8a6075] text-sm font-normal leading-normal">2:00 PM</td>
+                      <td class="table-d159d7a3-a912-4962-8b99-57ca41fd6e5d-column-600 h-[72px] px-4 py-2 w-60 text-sm font-normal leading-normal">
+                        <button
+                          class="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-full h-8 px-4 bg-[#f5f0f2] text-[#181114] text-sm font-medium leading-normal w-full"
+                        >
+                          <span class="truncate">Scheduled</span>
+                        </button>
+                      </td>
+                      <td class="table-d159d7a3-a912-4962-8b99-57ca41fd6e5d-column-720 h-[72px] px-4 py-2 w-60 text-[#8a6075] text-sm font-bold leading-normal tracking-[0.015em]">
+                        View
+                      </td>
+                    </tr>
+                    <tr class="border-t border-t-[#e6dbe0]">
+                      <td class="table-d159d7a3-a912-4962-8b99-57ca41fd6e5d-column-120 h-[72px] px-4 py-2 w-[400px] text-[#181114] text-sm font-normal leading-normal">
+                        Isabella Carter
+                      </td>
+                      <td class="table-d159d7a3-a912-4962-8b99-57ca41fd6e5d-column-240 h-[72px] px-4 py-2 w-[400px] text-[#8a6075] text-sm font-normal leading-normal">
+                        Gel Nails
+                      </td>
+                      <td class="table-d159d7a3-a912-4962-8b99-57ca41fd6e5d-column-360 h-[72px] px-4 py-2 w-[400px] text-[#8a6075] text-sm font-normal leading-normal">
+                        2024-07-22
+                      </td>
+                      <td class="table-d159d7a3-a912-4962-8b99-57ca41fd6e5d-column-480 h-[72px] px-4 py-2 w-[400px] text-[#8a6075] text-sm font-normal leading-normal">9:00 AM</td>
+                      <td class="table-d159d7a3-a912-4962-8b99-57ca41fd6e5d-column-600 h-[72px] px-4 py-2 w-60 text-sm font-normal leading-normal">
+                        <button
+                          class="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-full h-8 px-4 bg-[#f5f0f2] text-[#181114] text-sm font-medium leading-normal w-full"
+                        >
+                          <span class="truncate">Scheduled</span>
+                        </button>
+                      </td>
+                      <td class="table-d159d7a3-a912-4962-8b99-57ca41fd6e5d-column-720 h-[72px] px-4 py-2 w-60 text-[#8a6075] text-sm font-bold leading-normal tracking-[0.015em]">
+                        View
+                      </td>
+                    </tr>
+                    <tr class="border-t border-t-[#e6dbe0]">
+                      <td class="table-d159d7a3-a912-4962-8b99-57ca41fd6e5d-column-120 h-[72px] px-4 py-2 w-[400px] text-[#181114] text-sm font-normal leading-normal">
+                        Mia Foster
+                      </td>
+                      <td class="table-d159d7a3-a912-4962-8b99-57ca41fd6e5d-column-240 h-[72px] px-4 py-2 w-[400px] text-[#8a6075] text-sm font-normal leading-normal">Nail Art</td>
+                      <td class="table-d159d7a3-a912-4962-8b99-57ca41fd6e5d-column-360 h-[72px] px-4 py-2 w-[400px] text-[#8a6075] text-sm font-normal leading-normal">
+                        2024-07-22
+                      </td>
+                      <td class="table-d159d7a3-a912-4962-8b99-57ca41fd6e5d-column-480 h-[72px] px-4 py-2 w-[400px] text-[#8a6075] text-sm font-normal leading-normal">1:00 PM</td>
+                      <td class="table-d159d7a3-a912-4962-8b99-57ca41fd6e5d-column-600 h-[72px] px-4 py-2 w-60 text-sm font-normal leading-normal">
+                        <button
+                          class="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-full h-8 px-4 bg-[#f5f0f2] text-[#181114] text-sm font-medium leading-normal w-full"
+                        >
+                          <span class="truncate">Scheduled</span>
+                        </button>
+                      </td>
+                      <td class="table-d159d7a3-a912-4962-8b99-57ca41fd6e5d-column-720 h-[72px] px-4 py-2 w-60 text-[#8a6075] text-sm font-bold leading-normal tracking-[0.015em]">
+                        View
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <style>
+                          @container(max-width:120px){.table-d159d7a3-a912-4962-8b99-57ca41fd6e5d-column-120{display: none;}}
+                @container(max-width:240px){.table-d159d7a3-a912-4962-8b99-57ca41fd6e5d-column-240{display: none;}}
+                @container(max-width:360px){.table-d159d7a3-a912-4962-8b99-57ca41fd6e5d-column-360{display: none;}}
+                @container(max-width:480px){.table-d159d7a3-a912-4962-8b99-57ca41fd6e5d-column-480{display: none;}}
+                @container(max-width:600px){.table-d159d7a3-a912-4962-8b99-57ca41fd6e5d-column-600{display: none;}}
+                @container(max-width:720px){.table-d159d7a3-a912-4962-8b99-57ca41fd6e5d-column-720{display: none;}}
+              </style>
+            </div>
+            <div class="flex justify-end overflow-hidden px-5 pb-5">
+              <button
+                class="flex max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-full h-14 bg-[#f655a5] text-white text-base font-bold leading-normal tracking-[0.015em] min-w-0 px-2 gap-4 pl-4 pr-6"
+              >
+                <div class="text-white" data-icon="ChatCircleDots" data-size="24px" data-weight="regular">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24px" height="24px" fill="currentColor" viewBox="0 0 256 256">
+                    <path
+                      d="M140,128a12,12,0,1,1-12-12A12,12,0,0,1,140,128ZM84,116a12,12,0,1,0,12,12A12,12,0,0,0,84,116Zm88,0a12,12,0,1,0,12,12A12,12,0,0,0,172,116Zm60,12A104,104,0,0,1,79.12,219.82L45.07,231.17a16,16,0,0,1-20.24-20.24l11.35-34.05A104,104,0,1,1,232,128Zm-16,0A88,88,0,1,0,51.81,172.06a8,8,0,0,1,.66,6.54L40,216,77.4,203.53a7.85,7.85,0,0,1,2.53-.42,8,8,0,0,1,4,1.08A88,88,0,0,0,216,128Z"
+                    ></path>
+                  </svg>
+                </div>
+              </button>
+            </div>
+          </div>
         </div>
-        
-        <div class="footer-area">
-            <button class="button" onclick="window.location.href='vDisponibilita.html'">
-                <i class="fas fa-arrow-left"></i> Torna alla pagina clienti
-            </button>
-        </div>
+      </div>
     </div>
-    
-    <div class="toast" id="toast">
-        <div class="icon"><i class="fas fa-check-circle"></i></div>
-        <div class="toast-message">Disponibilità aggiunta con successo!</div>
-    </div>
-    
-    <div class="ai-assistant-toggle" id="ai-assistant-toggle">
-        <i class="fas fa-robot"></i>
-    </div>
-    
-    <div class="ai-assistant-container" id="ai-assistant-container">
-        <div class="ai-assistant-header" id="ai-assistant-header">
-            <div class="ai-assistant-title">
-                <i class="fas fa-robot"></i>
-                <span>Assistente AI</span>
-            </div>
-            <div class="ai-assistant-close">
-                <i class="fas fa-minus"></i>
-            </div>
-        </div>
-        
-        <div class="ai-chat">
-            <div class="ai-chat-messages" id="ai-chat-messages">
-                <div class="ai-chat-message ai-message">
-                    <div class="ai-chat-avatar">
-                        <i class="fas fa-robot"></i>
-                    </div>
-                    <div class="ai-chat-content">
-                        Ciao! Sono il tuo assistente per la gestione delle disponibilità. Posso aiutarti a:
-                        <br>- Aggiungere nuove fasce orarie
-                        <br>- Gestire le disponibilità esistenti
-                        <br>- Fornire suggerimenti sui periodi migliori
-                        <br><br>Come posso aiutarti oggi?
-                    </div>
-                </div>
-            </div>
-            
-            <div class="ai-loading-indicator" id="ai-loading-indicator">
-                <div class="dot-flashing"></div>
-            </div>
-            
-            <div class="ai-chat-input-container">
-                <textarea 
-                    class="ai-chat-input"
-                    id="ai-chat-input"
-                    placeholder="Scrivi un messaggio..."
-                    rows="1"
-                    oninput="this.style.height = 'auto'; this.style.height = (this.scrollHeight < 100 ? this.scrollHeight : 100) + 'px'"
-                ></textarea>
-                <button class="ai-send-button" id="ai-send-button">
-                    <i class="fas fa-paper-plane"></i>
-                </button>
-            </div>
-        </div>
-    </div>
-    
-    <script src="config.js"></script>
-    <script src="firebase-wrapper.js"></script>
-    <script src="ai_assistant.js"></script> <!-- Assicura che sia lo script corretto e in ordine -->
-    <script type="module" src="disponibilita.js"></script>
-</body>
+  </body>
 </html>
